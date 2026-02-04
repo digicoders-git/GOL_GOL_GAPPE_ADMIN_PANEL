@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import logo from '../assets/logo.jpeg';
+import { login } from '../utils/api';
 
 const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -16,16 +17,9 @@ const Login = () => {
         setLoading(true);
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData)
-            });
-            
-            const data = await response.json();
-            
+            const response = await login(formData);
+            const data = response.data;
+
             if (data.success) {
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
@@ -37,7 +31,7 @@ const Login = () => {
         } catch (error) {
             toast.error('Connection error. Please check if backend is running.');
         }
-        
+
         setLoading(false);
     };
 
@@ -107,7 +101,7 @@ const Login = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-primary hover:bg-primary/90 text-secondary font-bold py-3.5 rounded-xl shadow-lg shadow-primary/20 transform transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+                            className="w-full bg-primary hover:bg-primary/90 text-secondary font-bold py-3.5 rounded-xl shadow-lg shadow-primary/20 transform transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2 cursor-pointer"
                         >
                             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : 'Login to Dashboard'}
                         </button>

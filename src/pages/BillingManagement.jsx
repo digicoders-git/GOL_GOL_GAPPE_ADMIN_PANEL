@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getBills } from '../utils/api';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import {
@@ -25,31 +26,96 @@ import {
     MdChevronLeft,
     MdChevronRight
 } from 'react-icons/md';
+import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
 
 const BillingManagement = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [currentPage, setCurrentPage] = useState(1);
+    const [transactions, setTransactions] = useState([]);
+    const [loading, setLoading] = useState(true);
     const itemsPerPage = 8;
 
-    // Mock Billing Data (Expanded for pagination)
-    const transactions = [
-        { id: 'INV-8821', customer: 'Rahul Sharma', amount: 140, date: '2024-02-04', time: '10:45 AM', status: 'Completed', method: 'UPI' },
-        { id: 'INV-8820', customer: 'Anita Singh', amount: 50, date: '2024-02-04', time: '10:30 AM', status: 'Pending', method: 'Cash' },
-        { id: 'INV-8819', customer: 'Karan Mehra', amount: 180, date: '2024-02-04', time: '10:15 AM', status: 'Completed', method: 'UPI' },
-        { id: 'INV-8818', customer: 'Suresh Kumar', amount: 80, date: '2024-02-04', time: '09:45 AM', status: 'Completed', method: 'Cash' },
-        { id: 'INV-8817', customer: 'Priya Verma', amount: 220, date: '2024-02-03', time: '08:30 PM', status: 'Cancelled', method: 'Card' },
-        { id: 'INV-8816', customer: 'Amit Patel', amount: 35, date: '2024-02-03', time: '07:15 PM', status: 'Completed', method: 'UPI' },
-        { id: 'INV-8815', customer: 'Walk-in Customer', amount: 60, date: '2024-02-03', time: '06:00 PM', status: 'Completed', method: 'Cash' },
-        { id: 'INV-8814', customer: 'Vikram Seth', amount: 110, date: '2024-02-03', time: '05:30 PM', status: 'Completed', method: 'UPI' },
-        { id: 'INV-8813', customer: 'Sanjay Gupta', amount: 45, date: '2024-02-03', time: '04:45 PM', status: 'Pending', method: 'Cash' },
-        { id: 'INV-8812', customer: 'Neha Kapoor', amount: 75, date: '2024-02-02', time: '03:15 PM', status: 'Completed', method: 'UPI' },
-        { id: 'INV-8811', customer: 'Rohan Das', amount: 130, date: '2024-02-02', time: '02:00 PM', status: 'Completed', method: 'Card' },
-        { id: 'INV-8810', customer: 'Aarav Jha', amount: 90, date: '2024-02-02', time: '01:15 PM', status: 'Completed', method: 'UPI' },
-        { id: 'INV-8809', customer: 'Ishani Roy', amount: 55, date: '2024-02-02', time: '12:30 PM', status: 'Completed', method: 'Cash' },
-        { id: 'INV-8808', customer: 'Kabir Singh', amount: 200, date: '2024-02-01', time: '11:45 AM', status: 'Cancelled', method: 'UPI' },
-        { id: 'INV-8807', customer: 'Ananya Bajaj', amount: 120, date: '2024-02-01', time: '10:30 AM', status: 'Completed', method: 'Cash' },
-    ];
+    const fetchBills = async () => {
+        try {
+            setLoading(true);
+            const response = await getBills();
+            if (response.data.success) {
+                const mappedBills = response.data.bills.map(b => ({
+                    id: b.billNumber,
+                    customer: b.customer?.name || 'Walk-in Customer',
+                    amount: b.totalAmount,
+                    date: new Date(b.createdAt).toLocaleDateString('en-IN'),
+                    time: new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+                    status: b.status.charAt(0).toUpperCase() + b.status.slice(1),
+                    method: b.paymentMethod
+                }));
+                setTransactions(mappedBills);
+            }
+        } catch (error) {
+            console.error('Error fetching bills:', error);
+            toast.error('Failed to load transactions');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchBills();
+    }, []);
+
+    const handleExport = () => {
+        toast.promise(
+            new Promise((resolve) => setTimeout(resolve, 2000)),
+            {
+                loading: 'Generating Master Data Report...',
+                success: 'Exported Successfully!',
+                error: 'Export Failed',
+            }
+        );
+    };
+
+    const handleView = (tx) => {
+        Swal.fire({
+            title: `<span class="text-2xl backdrop-blur-xl font-black text-secondary uppercase tracking-tight">Transaction Details</span>`,
+            html: `
+                <div class="text-left bg-zinc-50 p-6 rounded-2xl border border-zinc-100 flex flex-col gap-3">
+                    <div class="flex justify-between border-b border-zinc-200 pb-2">
+                        <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">ID</span>
+                        <span class="text-sm font-black text-secondary">${tx.id}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-zinc-200 pb-2">
+                        <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Customer</span>
+                        <span class="text-sm font-black text-secondary">${tx.customer}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-zinc-200 pb-2">
+                        <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Amount</span>
+                        <span class="text-lg font-black text-emerald-600">₹${tx.amount}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-zinc-200 pb-2">
+                        <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Date & Time</span>
+                        <span class="text-sm font-black text-secondary">${tx.date} at ${tx.time}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Status</span>
+                        <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${tx.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : tx.status === 'Pending' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}">${tx.status}</span>
+                    </div>
+                </div>
+            `,
+            showConfirmButton: false,
+            showCloseButton: true,
+            customClass: {
+                popup: 'rounded-[2rem] p-0 overflow-hidden',
+                closeButton: 'focus:outline-none'
+            }
+        });
+    };
+
+    const handlePrint = (id) => {
+        toast.success(`Printing Invoice #${id}`);
+    };
+
 
     const filteredTransactions = useMemo(() => {
         return transactions.filter(t => {
@@ -66,41 +132,121 @@ const BillingManagement = () => {
         currentPage * itemsPerPage
     );
 
-    // --- Chart Configurations ---
+    // --- Chart Configurations with Full Animations ---
     const revenueChartOptions = {
         chart: {
             type: 'areaspline',
             backgroundColor: 'transparent',
             height: 350,
-            style: { fontFamily: 'inherit' }
+            style: { fontFamily: 'inherit' },
+            animation: {
+                duration: 2000,
+                easing: 'easeOutBounce'
+            }
         },
         title: { text: null },
         xAxis: {
             categories: ['Feb 01', 'Feb 02', 'Feb 03', 'Feb 04'],
-            labels: { style: { color: '#94a3b8', fontWeight: 'bold' } },
-            gridLineWidth: 0
+            labels: {
+                style: {
+                    color: '#94a3b8',
+                    fontWeight: '900',
+                    fontSize: '10px',
+                    textTransform: 'uppercase'
+                }
+            },
+            gridLineWidth: 0,
+            lineColor: '#e2e8f0',
+            tickColor: '#e2e8f0'
         },
         yAxis: {
             title: { text: null },
-            labels: { style: { color: '#94a3b8', fontWeight: 'bold' } },
-            gridLineColor: '#f1f5f9'
+            labels: {
+                style: {
+                    color: '#94a3b8',
+                    fontWeight: '900',
+                    fontSize: '10px'
+                },
+                format: '₹{value}'
+            },
+            gridLineColor: '#f1f5f9',
+            gridLineDashStyle: 'Dash'
         },
         tooltip: {
             shared: true,
             useHTML: true,
-            headerFormat: '<span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase">{point.key}</span><br/>',
-            pointFormat: '<span style="color:{point.color}">\u25CF</span> <span style="font-weight: 800; color: #1e293b">{series.name}:</span> <b>₹{point.y}</b><br/>',
+            headerFormat: '<div style="padding: 8px; background: linear-gradient(135deg, #F97316 0%, #ea580c 100%); border-radius: 8px 8px 0 0; margin: -8px -8px 8px -8px;"><span style="font-size: 11px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 1px;">{point.key}</span></div>',
+            pointFormat: '<div style="display: flex; align-items: center; gap: 8px; padding: 4px 0;"><span style="color:{point.color}; font-size: 20px;">●</span><span style="font-weight: 800; color: #1e293b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">{series.name}:</span><b style="color: #F97316; font-size: 16px; margin-left: auto;">₹{point.y}</b></div>',
             backgroundColor: '#ffffff',
-            borderRadius: 12,
-            borderWidth: 0,
-            shadow: true
+            borderRadius: 16,
+            borderWidth: 2,
+            borderColor: '#F97316',
+            shadow: {
+                color: 'rgba(249, 115, 22, 0.3)',
+                offsetX: 0,
+                offsetY: 4,
+                opacity: 0.5,
+                width: 10
+            },
+            style: {
+                padding: '12px'
+            }
         },
         plotOptions: {
             areaspline: {
-                fillOpacity: 0.1,
+                fillColor: {
+                    linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+                    stops: [
+                        [0, 'rgba(249, 115, 22, 0.3)'],
+                        [1, 'rgba(249, 115, 22, 0.01)']
+                    ]
+                },
+                lineWidth: 3,
                 marker: {
-                    enabled: false,
-                    states: { hover: { enabled: true } }
+                    enabled: true,
+                    radius: 5,
+                    fillColor: '#ffffff',
+                    lineWidth: 3,
+                    lineColor: '#F97316',
+                    symbol: 'circle',
+                    states: {
+                        hover: {
+                            enabled: true,
+                            radius: 8,
+                            lineWidth: 4,
+                            animation: {
+                                duration: 200
+                            }
+                        }
+                    }
+                },
+                states: {
+                    hover: {
+                        lineWidth: 4,
+                        halo: {
+                            size: 10,
+                            opacity: 0.25,
+                            attributes: {
+                                fill: '#F97316'
+                            }
+                        }
+                    }
+                },
+                animation: {
+                    duration: 2000
+                },
+                dataLabels: {
+                    enabled: true,
+                    formatter: function () {
+                        return '₹' + this.y;
+                    },
+                    style: {
+                        fontSize: '11px',
+                        fontWeight: '900',
+                        color: '#2D1B0D',
+                        textOutline: '2px #ffffff'
+                    },
+                    y: -10
                 }
             }
         },
@@ -108,6 +254,10 @@ const BillingManagement = () => {
             name: 'Revenue',
             data: [320, 350, 480, 520],
             color: '#F97316',
+            animation: {
+                duration: 2500,
+                easing: 'easeOutQuart'
+            }
         }],
         credits: { enabled: false }
     };
@@ -117,45 +267,163 @@ const BillingManagement = () => {
             type: 'pie',
             backgroundColor: 'transparent',
             height: 350,
-            style: { fontFamily: 'inherit' }
+            style: { fontFamily: 'inherit' },
+            animation: {
+                duration: 2000
+            },
+            options3d: {
+                enabled: true,
+                alpha: 45,
+                beta: 0
+            }
         },
         title: { text: null },
         tooltip: {
-            pointFormat: '{series.name}: <b>{point.percentage:.1f}%</b>',
+            useHTML: true,
+            headerFormat: '',
+            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">{point.name}</div><div style="font-size: 20px; font-weight: 900; color: #F97316;">{point.percentage:.1f}%</div><div style="font-size: 11px; color: #94a3b8; font-weight: 800; margin-top: 4px;">Volume: {point.y}</div></div>',
             backgroundColor: '#ffffff',
-            borderRadius: 12,
-            borderWidth: 0,
-            shadow: true
+            borderRadius: 16,
+            borderWidth: 2,
+            borderColor: '#F97316',
+            shadow: {
+                color: 'rgba(249, 115, 22, 0.3)',
+                offsetX: 0,
+                offsetY: 4,
+                opacity: 0.5,
+                width: 10
+            },
+            style: {
+                padding: '16px'
+            }
         },
         plotOptions: {
             pie: {
-                innerSize: '65%',
+                innerSize: '60%',
+                depth: 45,
                 allowPointSelect: true,
                 cursor: 'pointer',
                 dataLabels: {
                     enabled: true,
-                    format: '{point.name}',
-                    style: { fontWeight: '800', color: '#64748b', textTransform: 'uppercase', fontSize: '10px' }
+                    format: '<b>{point.name}</b><br>{point.percentage:.1f}%',
+                    distance: 20,
+                    style: {
+                        fontWeight: '900',
+                        color: '#2D1B0D',
+                        textTransform: 'uppercase',
+                        fontSize: '11px',
+                        textOutline: '2px #ffffff',
+                        letterSpacing: '0.5px'
+                    },
+                    connectorColor: '#94a3b8',
+                    connectorWidth: 2
                 },
-                showInLegend: true
+                showInLegend: true,
+                borderWidth: 3,
+                borderColor: '#ffffff',
+                states: {
+                    hover: {
+                        brightness: 0.1,
+                        halo: {
+                            size: 15,
+                            opacity: 0.25
+                        }
+                    },
+                    select: {
+                        color: null,
+                        borderColor: '#2D1B0D',
+                        borderWidth: 4
+                    }
+                },
+                point: {
+                    events: {
+                        mouseOver: function () {
+                            this.graphic.attr({
+                                translateY: -10
+                            });
+                        },
+                        mouseOut: function () {
+                            this.graphic.attr({
+                                translateY: 0
+                            });
+                        }
+                    }
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeOutBounce'
+                }
             }
         },
         legend: {
-            itemStyle: { fontWeight: '800', fontSize: '10px', textTransform: 'uppercase', color: '#64748b' }
+            align: 'center',
+            verticalAlign: 'bottom',
+            layout: 'horizontal',
+            itemStyle: {
+                fontWeight: '900',
+                fontSize: '11px',
+                textTransform: 'uppercase',
+                color: '#64748b',
+                letterSpacing: '1px'
+            },
+            itemHoverStyle: {
+                color: '#F97316'
+            },
+            itemMarginBottom: 8,
+            symbolRadius: 8,
+            symbolHeight: 12,
+            symbolWidth: 12,
+            symbolPadding: 8
         },
         series: [{
-            name: 'Share',
+            name: 'Payment Share',
+            colorByPoint: true,
             data: [
-                { name: 'UPI', y: 55, color: '#F97316' },
-                { name: 'Cash', y: 35, color: '#2D1B0D' },
-                { name: 'Card', y: 10, color: '#94a3b8' }
-            ]
+                {
+                    name: 'UPI',
+                    y: 850,
+                    color: {
+                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
+                        stops: [
+                            [0, '#F97316'],
+                            [1, '#ea580c']
+                        ]
+                    },
+                    sliced: true,
+                    selected: true
+                },
+                {
+                    name: 'Cash',
+                    y: 540,
+                    color: {
+                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
+                        stops: [
+                            [0, '#2D1B0D'],
+                            [1, '#1a0f07']
+                        ]
+                    }
+                },
+                {
+                    name: 'Card',
+                    y: 155,
+                    color: {
+                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
+                        stops: [
+                            [0, '#94a3b8'],
+                            [1, '#64748b']
+                        ]
+                    }
+                }
+            ],
+            animation: {
+                duration: 2500
+            }
         }],
         credits: { enabled: false }
     };
 
     return (
-        <div className="space-y-8 pb-10 max-w-[1600px] mx-auto p-4 lg:p-6 bg-[#FDFCFB]">
+        <div className="space-y-8 pb-10 max-w-[1600px] mx-auto p-4 lg:p-6 bg-[#FDFCFB]" style={{ zoom: '90%' }}>
             {/* Header Section */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <motion.div
@@ -173,10 +441,10 @@ const BillingManagement = () => {
                 </motion.div>
 
                 <div className="flex items-center gap-3">
-                    <button className="bg-white border-2 border-zinc-100 p-3 rounded-xl text-secondary hover:border-primary transition-all shadow-sm group">
+                    <button onClick={handleExport} className="bg-white border-2 border-zinc-100 p-3 rounded-xl text-secondary hover:border-primary transition-all shadow-sm group cursor-pointer">
                         <MdFileDownload size={20} className="group-hover:scale-110 transition-transform text-zinc-400 group-hover:text-primary" />
                     </button>
-                    <button className="bg-secondary text-primary px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-secondary/10 hover:scale-[1.02] active:scale-95 transition-all">
+                    <button onClick={handleExport} className="bg-secondary text-primary px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-secondary/10 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer">
                         Export Master Data
                     </button>
                 </div>
@@ -324,10 +592,10 @@ const BillingManagement = () => {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center justify-center gap-2">
-                                                            <button className="w-9 h-9 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-primary hover:shadow-md transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center">
+                                                            <button onClick={() => handleView(tx)} className="w-9 h-9 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-primary hover:shadow-md transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center cursor-pointer">
                                                                 <MdVisibility size={18} />
                                                             </button>
-                                                            <button className="w-9 h-9 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-secondary hover:shadow-md transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center">
+                                                            <button onClick={() => handlePrint(tx.id)} className="w-9 h-9 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-secondary hover:shadow-md transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center cursor-pointer">
                                                                 <MdLocalPrintshop size={18} />
                                                             </button>
                                                         </div>

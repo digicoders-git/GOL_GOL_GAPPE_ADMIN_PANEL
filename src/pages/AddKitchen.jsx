@@ -1,204 +1,337 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-    ChefHat,
-    MapPin,
-    Phone,
-    Plus,
-    Save,
-    User,
-    Clock,
-    Shield,
-    Image as ImageIcon
-} from 'lucide-react';
+    MdOutlineKitchen,
+    MdLocationOn,
+    MdPerson,
+    MdPhone,
+    MdAccessTime,
+    MdSpeed,
+    MdSave,
+    MdRocketLaunch,
+    MdVerifiedUser,
+    MdArrowBack,
+    MdRefresh,
+    MdTimer,
+    MdMonitorWeight
+} from 'react-icons/md';
 import toast from 'react-hot-toast';
+import { createKitchen } from '../utils/api';
+import { useNavigate } from 'react-router-dom';
 
 const AddKitchen = () => {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        kitchenName: '',
+        name: '',
         location: '',
-        managerName: '',
-        contact: '',
+        manager: '',
+        phone: '',
         startTime: '08:00',
         endTime: '22:00',
         capacity: 'High'
     });
 
-    const handleSubmit = (e) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        toast.success(`Kitchen "${formData.kitchenName}" registered successfully! 🍳`);
-        setFormData({
-            kitchenName: '',
-            location: '',
-            managerName: '',
-            contact: '',
-            startTime: '08:00',
-            endTime: '22:00',
-            capacity: 'High'
-        });
+        setIsSubmitting(true);
+        const loadingToast = toast.loading('Initializing kitchen unit...');
+
+        try {
+            const response = await createKitchen(formData);
+            if (response.data.success) {
+                toast.success(`Unit "${formData.name}" Initialized!`, { id: loadingToast });
+                setFormData({
+                    name: '',
+                    location: '',
+                    manager: '',
+                    phone: '',
+                    startTime: '08:00',
+                    endTime: '22:00',
+                    capacity: 'High'
+                });
+                setTimeout(() => navigate('/kitchen-management'), 2000);
+            }
+        } catch (error) {
+            console.error('Create kitchen error:', error);
+            toast.error(error.response?.data?.message || 'Failed to initialize kitchen', { id: loadingToast });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="max-w-[1200px] mx-auto space-y-6 p-4 lg:p-6 animate-fade-in">
+
+            {/* --- Compact Header --- */}
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-orange-100 rounded-lg text-primary">
-                            <ChefHat size={16} />
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1.5 bg-primary/10 rounded-lg text-primary border border-primary/20">
+                            <MdRocketLaunch size={16} />
                         </div>
-                        <span className="text-primary font-black tracking-widest text-[10px] uppercase italic">Operational Setup</span>
+                        <span className="text-primary font-black tracking-widest text-[9px] uppercase italic bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10">Deployment Protocol</span>
                     </div>
-                    <h1 className="text-4xl font-black text-secondary tracking-tight">Register Kitchen</h1>
-                    <p className="text-zinc-500 font-medium mt-1">Add a new kitchen unit to the Gol Gol Gappe network.</p>
+                    <h1 className="text-3xl font-black text-secondary tracking-tight italic">Initialize Kitchen</h1>
+                    <p className="text-zinc-500 text-xs font-medium">Add a high-performance production node to the global network.</p>
                 </div>
-            </div>
 
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white p-6 rounded-3xl border-2 border-zinc-50 shadow-premium relative overflow-hidden"
-            >
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Kitchen Basic Info */}
-                        <div className="space-y-6">
-                            <div className="space-y-3 group">
-                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] ml-2">Kitchen Name</label>
-                                <div className="relative">
-                                    <ChefHat className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="Main Central Kitchen"
-                                        className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 pl-16 pr-8 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-inner"
-                                        value={formData.kitchenName}
-                                        onChange={(e) => setFormData({ ...formData, kitchenName: e.target.value })}
-                                    />
+                <button className="flex items-center gap-2 text-zinc-400 hover:text-secondary font-black text-[9px] uppercase tracking-widest transition-all bg-white px-4 py-2 rounded-xl border border-zinc-100 shadow-sm hover:shadow-md cursor-pointer">
+                    <MdArrowBack size={16} />
+                    Return to Fleet
+                </button>
+            </header>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+                {/* --- Form Section (Compact) --- */}
+                <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="lg:col-span-8 bg-white rounded-3xl border border-zinc-100 shadow-premium overflow-hidden"
+                >
+                    <div className="p-6 lg:p-8">
+                        <form onSubmit={handleSubmit} className="space-y-6">
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Unit Identity */}
+                                <div className="space-y-5">
+                                    <div className="flex items-center gap-2 text-secondary font-black text-[10px] uppercase tracking-widest border-b border-zinc-50 pb-2">
+                                        <MdOutlineKitchen className="text-primary" /> Identity Cluster
+                                    </div>
+
+                                    <div className="space-y-2 group">
+                                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Kitchen Call-Sign</label>
+                                        <div className="relative">
+                                            <MdOutlineKitchen className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 group-focus-within:text-primary transition-colors text-lg" />
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="e.g., Downtown Central 01"
+                                                className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner"
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 group">
+                                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Assigned Manager</label>
+                                        <div className="relative">
+                                            <MdPerson className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 group-focus-within:text-primary transition-colors text-lg" />
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="Lead personnel name"
+                                                className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner"
+                                                value={formData.manager}
+                                                onChange={(e) => setFormData({ ...formData, manager: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Logistics */}
+                                <div className="space-y-5">
+                                    <div className="flex items-center gap-2 text-secondary font-black text-[10px] uppercase tracking-widest border-b border-zinc-50 pb-2">
+                                        <MdLocationOn className="text-primary" /> Geo-Coordinates
+                                    </div>
+
+                                    <div className="space-y-2 group">
+                                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Location Address</label>
+                                        <div className="relative">
+                                            <MdLocationOn className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 group-focus-within:text-primary transition-colors text-lg" />
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="Sector, Street, City"
+                                                className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner"
+                                                value={formData.location}
+                                                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 group">
+                                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Unit Comms</label>
+                                        <div className="relative">
+                                            <MdPhone className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 group-focus-within:text-primary transition-colors text-lg" />
+                                            <input
+                                                type="tel"
+                                                required
+                                                placeholder="+91 Mobile Number"
+                                                className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner"
+                                                value={formData.phone}
+                                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-3 group">
-                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] ml-2">Manager Name</label>
-                                <div className="relative">
-                                    <User className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="Rahul Khanna"
-                                        className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 pl-16 pr-8 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-inner"
-                                        value={formData.managerName}
-                                        onChange={(e) => setFormData({ ...formData, managerName: e.target.value })}
-                                    />
+                            {/* Parameters */}
+                            <div className="pt-4 space-y-5">
+                                <div className="flex items-center gap-2 text-secondary font-black text-[10px] uppercase tracking-widest border-b border-zinc-50 pb-2">
+                                    <MdTimer className="text-primary" /> Operational Config
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                    <div className="space-y-2 group">
+                                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Open</label>
+                                        <div className="relative">
+                                            <MdAccessTime className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
+                                            <input
+                                                type="time"
+                                                className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner"
+                                                value={formData.startTime}
+                                                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2 group">
+                                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Close</label>
+                                        <div className="relative">
+                                            <MdAccessTime className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
+                                            <input
+                                                type="time"
+                                                className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner"
+                                                value={formData.endTime}
+                                                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2 group">
+                                        <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Payload Tier</label>
+                                        <div className="flex bg-zinc-50 p-1 rounded-xl border border-zinc-100 shadow-inner h-[46px]">
+                                            {['Low', 'Mid', 'Max'].map(cap => (
+                                                <button
+                                                    type="button"
+                                                    key={cap}
+                                                    onClick={() => setFormData({ ...formData, capacity: cap })}
+                                                    className={`flex-1 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${formData.capacity === cap
+                                                        ? 'bg-secondary text-primary shadow-lg'
+                                                        : 'text-zinc-400 hover:text-secondary'
+                                                        }`}
+                                                >
+                                                    {cap}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Submit */}
+                            <div className="pt-6 flex gap-4">
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex-[2] bg-secondary text-primary font-black py-4 rounded-2xl shadow-lg shadow-secondary/10 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 transition-all flex items-center justify-center gap-3 text-sm uppercase tracking-widest group cursor-pointer"
+                                >
+                                    {isSubmitting ? (
+                                        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <MdSave size={20} />
+                                            Initialize Unit
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({
+                                        name: '', location: '', manager: '', phone: '',
+                                        startTime: '08:00', endTime: '22:00', capacity: 'High'
+                                    })}
+                                    className="flex-1 bg-zinc-100 text-zinc-500 font-black py-4 rounded-2xl hover:bg-zinc-200 transition-all text-[10px] uppercase tracking-widest border border-zinc-200"
+                                >
+                                    Purge
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </motion.div>
+
+                {/* --- Sidebar Telemetry (Compact) --- */}
+                <div className="lg:col-span-4 space-y-6">
+
+                    {/* Live Preview Card */}
+                    <div className="bg-secondary rounded-3xl p-6 text-white relative overflow-hidden shadow-2xl">
+                        <div className="relative z-10 space-y-6">
+                            <div className="flex justify-between items-start">
+                                <div className="w-12 h-12 bg-primary text-secondary rounded-xl flex items-center justify-center shadow-lg border border-white/10">
+                                    <MdOutlineKitchen size={24} />
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className="bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1.5">
+                                        <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+                                        Protocol Ready
+                                    </span>
+                                    <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest italic">Node-ID: TBD</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <p className="text-[8px] font-black text-primary uppercase tracking-[0.3em] italic">Deployment Call-Sign</p>
+                                <h2 className="text-xl font-black tracking-tight uppercase italic truncate">
+                                    {formData.name || 'Node Locked'}
+                                </h2>
+                            </div>
+
+                            <div className="space-y-4 pt-4 border-t border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-primary border border-white/5">
+                                        <MdPerson size={16} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[7px] font-black text-white/30 uppercase tracking-widest">Unit Lead</span>
+                                        <span className="text-[10px] font-black text-white truncate max-w-[120px]">{formData.manager || 'Awaiting Assignment'}</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-primary border border-white/5">
+                                        <MdLocationOn size={16} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[7px] font-black text-white/30 uppercase tracking-widest">Coordinates</span>
+                                        <span className="text-[10px] font-black text-white truncate max-w-[120px]">{formData.location || 'Pending Vector'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 pt-2">
+                                <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                                    <p className="text-[7px] font-black text-white/30 uppercase tracking-widest mb-1">Window</p>
+                                    <p className="text-[9px] font-black text-primary uppercase flex items-center justify-center gap-1">
+                                        <MdAccessTime size={10} /> {formData.startTime}-{formData.endTime}
+                                    </p>
+                                </div>
+                                <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                                    <p className="text-[7px] font-black text-white/30 uppercase tracking-widest mb-1">Payload</p>
+                                    <p className="text-[9px] font-black text-emerald-400 uppercase flex items-center justify-center gap-1">
+                                        <MdSpeed size={10} /> {formData.capacity}
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Location & Contact */}
-                        <div className="space-y-6">
-                            <div className="space-y-3 group">
-                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] ml-2">Location Address</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="Sector 12, Malviya Nagar"
-                                        className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 pl-16 pr-8 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-inner"
-                                        value={formData.location}
-                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3 group">
-                                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] ml-2">Contact Number</label>
-                                <div className="relative">
-                                    <Phone className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        type="tel"
-                                        required
-                                        placeholder="+91 91234 56789"
-                                        className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 pl-16 pr-8 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-inner"
-                                        value={formData.contact}
-                                        onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                        {/* Decor */}
+                        <MdRefresh size={180} className="absolute -bottom-10 -right-10 text-white/[0.02] -rotate-12 pointer-events-none" />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-3 group">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] ml-2">Opening Time</label>
-                            <div className="relative">
-                                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300 group-focus-within:text-primary transition-colors" />
-                                <input
-                                    type="time"
-                                    className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-[1.5rem] py-5 pl-16 pr-8 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-inner"
-                                    value={formData.startTime}
-                                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                                />
-                            </div>
+                    {/* Compliance Box */}
+                    <div className="bg-white p-5 rounded-3xl border border-zinc-100 shadow-sm flex items-start gap-4">
+                        <div className="w-10 h-10 bg-zinc-50 text-secondary rounded-xl flex items-center justify-center shrink-0 border border-zinc-100">
+                            <MdVerifiedUser size={20} />
                         </div>
-                        <div className="space-y-3 group">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] ml-2">Closing Time</label>
-                            <div className="relative">
-                                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300 group-focus-within:text-primary transition-colors" />
-                                <input
-                                    type="time"
-                                    className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-[1.5rem] py-5 pl-16 pr-8 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-inner"
-                                    value={formData.endTime}
-                                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-3 group">
-                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em] ml-2">Kitchen Capacity</label>
-                            <div className="flex bg-zinc-50 p-2 rounded-2xl border-2 border-zinc-100 shadow-inner">
-                                {['Low', 'Medium', 'High'].map(cap => (
-                                    <button
-                                        type="button"
-                                        key={cap}
-                                        onClick={() => setFormData({ ...formData, capacity: cap })}
-                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${formData.capacity === cap ? 'bg-secondary text-white shadow-lg' : 'text-zinc-400 hover:text-secondary'}`}
-                                    >
-                                        {cap}
-                                    </button>
-                                ))}
-                            </div>
+                        <div>
+                            <h4 className="text-secondary font-black uppercase tracking-tight text-xs mb-1">Security Sync</h4>
+                            <p className="text-[9px] font-medium text-zinc-500 leading-relaxed uppercase tracking-widest">
+                                Unit must undergo Tier-1 security validation post-initialization.
+                            </p>
                         </div>
                     </div>
-
-                    <div className="pt-10 border-t-2 border-dashed border-zinc-100 flex flex-col md:flex-row gap-6">
-                        <button
-                            type="submit"
-                            className="flex-1 bg-secondary text-white font-black py-5 rounded-2xl shadow-xl shadow-secondary/20 hover:shadow-2xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-4 text-xl group"
-                        >
-                            <Save size={24} strokeWidth={3} className="group-hover:rotate-12 transition-transform" />
-                            SAVE KITCHEN DETAILS
-                        </button>
-                        <button
-                            type="button"
-                            className="md:w-64 bg-zinc-100 text-zinc-500 font-black py-5 rounded-2xl hover:bg-zinc-200 transition-all text-sm uppercase tracking-widest"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </form>
-
-                <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none">
-                    <ChefHat size={300} />
-                </div>
-            </motion.div>
-
-            {/* Safety Notice */}
-            <div className="bg-orange-50 border-2 border-orange-100 p-6 rounded-3xl flex items-start gap-6">
-                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-orange-500 shadow-sm shrink-0">
-                    <Shield size={28} />
-                </div>
-                <div>
-                    <h4 className="text-secondary font-black uppercase tracking-tight text-lg">Safety & Compliance</h4>
-                    <p className="text-zinc-600 font-medium leading-relaxed">By registering this kitchen, you confirm that it meets all health and safety regulations. All kitchen activities will be logged and monitored by the central system.</p>
                 </div>
             </div>
         </div>

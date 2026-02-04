@@ -35,16 +35,22 @@ import {
     MdChevronRight
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
+import { getProducts, createBill, getKitchens } from '../utils/api';
 
 const AddBilling = () => {
     // --- State Management ---
+    const [products, setProducts] = useState([]);
+    const [kitchens, setKitchens] = useState([]);
     const [customer, setCustomer] = useState({ name: '', phone: '' });
     const [cart, setCart] = useState([]);
+    const [selectedKitchen, setSelectedKitchen] = useState('');
+    const [loading, setLoading] = useState(true);
     const [discount, setDiscount] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [tableNo, setTableNo] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('Cash');
+    const [transactionDetails, setTransactionDetails] = useState('');
     const [orderType, setOrderType] = useState('Dine-In');
     const [manualItem, setManualItem] = useState({ name: '', price: '' });
     const [showManualModal, setShowManualModal] = useState(false);
@@ -57,25 +63,41 @@ const AddBilling = () => {
 
     const searchRef = useRef(null);
 
-    // --- Mock Data ---
-    const products = [
-        { id: 1, name: 'Regular Gol Gappe (6pcs)', price: 30, category: 'Snacks', icon: <MdFastfood className="text-orange-500" /> },
-        { id: 2, name: 'Dahi Bhalla', price: 60, category: 'Snacks', icon: <MdRestaurant className="text-orange-600" /> },
-        { id: 3, name: 'Aloo Tikki', price: 50, category: 'Snacks', icon: <MdFastfood className="text-orange-400" /> },
-        { id: 4, name: 'Masala Water (1L)', price: 40, category: 'Beverages', icon: <MdCoffee className="text-blue-500" /> },
-        { id: 5, name: 'Special Mix Chaat', price: 80, category: 'Snacks', icon: <MdRestaurant className="text-red-500" /> },
-        { id: 6, name: 'Mineral Water', price: 20, category: 'Beverages', icon: <MdCoffee className="text-blue-400" /> },
-        { id: 7, name: 'Extra Masala Box', price: 10, category: 'Others', icon: <MdMoreHoriz className="text-zinc-500" /> },
-        { id: 8, name: 'Papdi Chaat', price: 55, category: 'Snacks', icon: <MdFastfood className="text-orange-500" /> },
-        { id: 9, name: 'Panner Tikka Gol Gappe', price: 120, category: 'Main Course', icon: <MdFlashOn className="text-yellow-500" /> },
-    ];
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [prodRes, kitchenRes] = await Promise.all([getProducts(), getKitchens()]);
+            if (prodRes.data.success) {
+                setProducts(prodRes.data.products.map(p => ({
+                    ...p,
+                    id: p._id,
+                    icon: <MdFastfood className="text-orange-500" /> // Default icon
+                })));
+            }
+            if (kitchenRes.data.success) {
+                setKitchens(kitchenRes.data.kitchens);
+                if (kitchenRes.data.kitchens.length > 0) {
+                    setSelectedKitchen(kitchenRes.data.kitchens[0]._id);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            toast.error('Failed to load products/kitchens');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
 
     const categories = [
         { name: 'All', icon: <MdLayers size={14} /> },
-        { name: 'Snacks', icon: <MdFastfood size={14} /> },
-        { name: 'Beverages', icon: <MdCoffee size={14} /> },
-        { name: 'Main Course', icon: <MdRestaurant size={14} /> },
-        { name: 'Others', icon: <MdMoreHoriz size={14} /> }
+        { name: 'ingredients', icon: <MdFastfood size={14} /> },
+        { name: 'snacks', icon: <MdFastfood size={14} /> },
+        { name: 'packaging', icon: <MdCoffee size={14} /> },
+        { name: 'others', icon: <MdMoreHoriz size={14} /> }
     ];
 
     // --- Calculations ---
@@ -134,26 +156,54 @@ const AddBilling = () => {
             return;
         }
 
+        if (!selectedKitchen) {
+            toast.error('Please select a kitchen!');
+            return;
+        }
+
         setIsProcessing(true);
-        await new Promise(resolve => setTimeout(resolve, 600));
+        const loadingToast = toast.loading('Processing order...');
 
-        const orderData = {
-            id: `INV-${Date.now().toString().slice(-6)}`,
-            customer,
-            tableNo,
-            paymentMethod,
-            orderType,
-            items: [...cart],
-            subtotal,
-            discount,
-            total,
-            date: new Date().toLocaleString()
-        };
+        try {
+            const billData = {
+                customer,
+                kitchen: selectedKitchen,
+                items: cart.map(item => ({
+                    product: item.id,
+                    quantity: item.quantity,
+                    price: item.price
+                })),
+                totalAmount: total,
+                paymentMethod,
+                transactionDetails
+            };
 
-        setLastOrder(orderData);
-        setShowReceipt(true);
-        setIsProcessing(false);
-        toast.success('Done! 💳');
+            const response = await createBill(billData);
+            if (response.data.success) {
+                const orderData = {
+                    id: response.data.bill.billNumber,
+                    customer,
+                    tableNo,
+                    paymentMethod,
+                    transactionDetails: paymentMethod !== 'Cash' ? transactionDetails : '',
+                    orderType,
+                    items: [...cart],
+                    subtotal,
+                    discount,
+                    total,
+                    date: new Date().toLocaleString()
+                };
+
+                setLastOrder(orderData);
+                setShowReceipt(true);
+                toast.success('Done! 💳', { id: loadingToast });
+            }
+        } catch (error) {
+            console.error('Checkout error:', error);
+            toast.error(error.response?.data?.message || 'Checkout failed', { id: loadingToast });
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const finalizeOrder = () => {
@@ -162,6 +212,7 @@ const AddBilling = () => {
         setCustomer({ name: '', phone: '' });
         setTableNo('');
         setDiscount(0);
+        setTransactionDetails('');
         setPaymentMethod('Cash');
         setOrderType('Dine-In');
         setSearchQuery('');
@@ -481,6 +532,29 @@ const AddBilling = () => {
                                             </button>
                                         ))}
                                     </div>
+
+                                    <AnimatePresence>
+                                        {paymentMethod !== 'Cash' && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <label className="text-[8px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1 mb-2">
+                                                    <MdCreditCard size={10} className="text-secondary" />
+                                                    {paymentMethod} Reference / Transaction ID
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder={`Enter ${paymentMethod} details...`}
+                                                    className="w-full bg-white border border-zinc-200 rounded-xl py-2.5 px-3 uppercase font-bold text-xs text-secondary outline-none focus:border-primary transition-all shadow-sm"
+                                                    value={transactionDetails}
+                                                    onChange={(e) => setTransactionDetails(e.target.value)}
+                                                />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[8px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1"><MdRestaurant size={10} className="text-primary" /> Service Type</label>
@@ -626,7 +700,7 @@ const AddBilling = () => {
                                         <MdReceipt size={20} className="text-secondary" />
                                         <h3 className="font-black text-secondary uppercase text-xs tracking-widest">Digital Invoice</h3>
                                     </div>
-                                    <button onClick={finalizeOrder} className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-sm border border-zinc-100 text-red-500 hover:bg-red-50 transition-colors"><MdAdd size={24} className="rotate-45" /></button>
+                                    <button onClick={finalizeOrder} className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-sm border border-zinc-100 text-red-500 hover:bg-red-50 transition-colors cursor-pointer"><MdAdd size={24} className="rotate-45" /></button>
                                 </div>
 
                                 <div className="flex-1 p-10 print:p-0 overflow-y-auto custom-scrollbar" id="printable-receipt">
@@ -706,8 +780,8 @@ const AddBilling = () => {
                                 </div>
 
                                 <div className="p-8 flex gap-4 print:hidden bg-zinc-50 border-t border-zinc-100 shrink-0">
-                                    <button onClick={finalizeOrder} className="flex-1 py-4 text-[11px] font-black uppercase rounded-2xl border-2 border-zinc-200 text-zinc-500 hover:bg-zinc-200 transition-colors">Dismiss</button>
-                                    <button onClick={handlePrint} className="flex-[2.5] py-4 bg-primary text-secondary text-[11px] font-black uppercase rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all"><MdLocalPrintshop size={20} /> Authorize & Print</button>
+                                    <button onClick={finalizeOrder} className="flex-1 py-4 text-[11px] font-black uppercase rounded-2xl border-2 border-zinc-200 text-zinc-500 hover:bg-zinc-200 transition-colors cursor-pointer">Dismiss</button>
+                                    <button onClick={handlePrint} className="flex-[2.5] py-4 bg-primary text-secondary text-[11px] font-black uppercase rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all cursor-pointer"><MdLocalPrintshop size={20} /> Authorize & Print</button>
                                 </div>
                             </motion.div>
                         </div>

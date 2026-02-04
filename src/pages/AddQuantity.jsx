@@ -1,34 +1,29 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Plus,
-    Package,
-    Save,
-    Trash2,
-    History,
-    Layers,
-    Scale,
-    Info,
-    ArrowUpRight,
-    TrendingUp,
-    AlertCircle,
-    CheckCircle2,
-    Search,
-    X,
-    FileDown
-} from 'lucide-react';
+    MdAdd,
+    MdInventory,
+    MdSave,
+    MdDelete,
+    MdHistory,
+    MdLayers,
+    MdScale,
+    MdInfo,
+    MdTrendingUp,
+    MdWarning,
+    MdCheckCircle,
+    MdSearch,
+    MdClose,
+    MdFileDownload,
+    MdCategory
+} from 'react-icons/md';
 import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
+import { getStockLogs, addQuantity } from '../utils/api';
 
 const AddQuantity = () => {
-    // Persistence with localStorage
-    const [recentEntries, setRecentEntries] = useState(() => {
-        const saved = localStorage.getItem('golgol_inventory_logs');
-        return saved ? JSON.parse(saved) : [
-            { id: 1, name: 'Atta (Premium)', quantity: 50, unit: 'kg', date: '03 Feb', status: 'completed', category: 'ingredients' },
-            { id: 2, name: 'Cooking Oil', quantity: 20, unit: 'ltr', date: '02 Feb', status: 'completed', category: 'ingredients' },
-            { id: 3, name: 'Green Chutney', quantity: 15, unit: 'ltr', date: '01 Feb', status: 'completed', category: 'ingredients' },
-        ];
-    });
+    const [recentEntries, setRecentEntries] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     const [formData, setFormData] = useState({
         productName: '',
@@ -40,10 +35,33 @@ const AddQuantity = () => {
 
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Sync with localStorage
+    const fetchLogs = async () => {
+        try {
+            setLoading(true);
+            const response = await getStockLogs();
+            if (response.data.success) {
+                const logs = response.data.logs.map(log => ({
+                    id: log._id,
+                    name: log.product.name,
+                    category: log.product.category,
+                    quantity: log.quantity,
+                    unit: log.product.unit,
+                    date: new Date(log.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+                    status: 'completed'
+                }));
+                setRecentEntries(logs);
+            }
+        } catch (error) {
+            console.error('Error fetching logs:', error);
+            toast.error('Failed to fetch stock logs');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        localStorage.setItem('golgol_inventory_logs', JSON.stringify(recentEntries));
-    }, [recentEntries]);
+        fetchLogs();
+    }, []);
 
     // Dynamic Stats
     const stats = useMemo(() => {
@@ -52,10 +70,10 @@ const AddQuantity = () => {
         const totalUnits = recentEntries.reduce((acc, curr) => acc + Number(curr.quantity), 0);
 
         return [
-            { title: "Today's Additions", value: `${todayEntries.length} Items`, icon: <Plus />, color: "bg-blue-200", trend: `+${todayEntries.length}` },
-            { title: "Total Units Added", value: `${totalUnits}`, icon: <Layers />, color: "bg-orange-300", trend: "Lifetime" },
-            { title: "Top Category", value: "Ingredients", icon: <TrendingUp />, color: "bg-orange-200", trend: "High Use" },
-            { title: "Log Entries", value: `${recentEntries.length}`, icon: <CheckCircle2 />, color: "bg-green-200", trend: "Active" },
+            { title: "Today's Additions", value: `${todayEntries.length} Items`, icon: <MdAdd />, color: "text-blue-600", bg: "bg-blue-50", trend: `+${todayEntries.length}` },
+            { title: "Total Units Added", value: `${totalUnits}`, icon: <MdLayers />, color: "text-orange-600", bg: "bg-orange-50", trend: "Lifetime" },
+            { title: "Top Category", value: "Ingredients", icon: <MdTrendingUp />, color: "text-primary", bg: "bg-primary/10", trend: "High Use" },
+            { title: "Log Entries", value: `${recentEntries.length}`, icon: <MdCheckCircle />, color: "text-emerald-600", bg: "bg-emerald-50", trend: "Active" },
         ];
     }, [recentEntries]);
 
@@ -64,260 +82,284 @@ const AddQuantity = () => {
         entry.category.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.productName || !formData.quantity) {
             toast.error('Please fill all required fields');
             return;
         }
 
-        const newEntry = {
-            id: Date.now(),
-            name: formData.productName,
-            category: formData.category,
-            quantity: Number(formData.quantity),
-            unit: formData.unit,
-            date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
-            status: 'completed'
-        };
-
-        setRecentEntries([newEntry, ...recentEntries]);
-        setFormData({ productName: '', category: 'ingredients', quantity: '', unit: 'kg', notes: '' });
-        toast.success('Stock updated successfully!');
+        const loadingToast = toast.loading('Updating inventory...');
+        try {
+            const response = await addQuantity(formData);
+            if (response.data.success) {
+                toast.success('Stock updated successfully!', { id: loadingToast });
+                setFormData({ productName: '', category: 'ingredients', quantity: '', unit: 'kg', notes: '' });
+                fetchLogs(); // Refresh the list
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to update stock', { id: loadingToast });
+        }
     };
 
     const deleteEntry = (id) => {
-        if (window.confirm('Are you sure you want to delete this log?')) {
-            setRecentEntries(recentEntries.filter(e => e.id !== id));
-            toast.error('Entry removed');
-        }
+        Swal.fire({
+            title: 'Delete Log?',
+            text: "This record will be permanently removed.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#71717a',
+            confirmButtonText: 'Yes, delete it!',
+            background: '#ffffff',
+            customClass: {
+                popup: 'rounded-[2rem]',
+                confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-sm',
+                cancelButton: 'px-6 py-2.5 rounded-xl font-bold text-sm'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setRecentEntries(recentEntries.filter(e => e.id !== id));
+                Swal.fire({
+                    title: 'Deleted!',
+                    text: 'Entry has been removed.',
+                    icon: 'success',
+                    confirmButtonColor: '#10b981',
+                    customClass: {
+                        popup: 'rounded-[2rem]',
+                        confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-sm'
+                    }
+                });
+            }
+        });
     };
 
     const exportData = () => toast.success('Report Downloaded!');
 
     return (
-        <div className="space-y-8 animate-fade-in max-w-7xl mx-auto pb-10 px-4 sm:px-0">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                    <span className="text-primary font-bold tracking-widest text-xs uppercase italic">Inventory Management</span>
-                    <h1 className="text-3xl font-black text-secondary mt-1 tracking-tight">Add Quantity</h1>
-                    <p className="text-zinc-500 font-medium">Update stock levels with full audit trail</p>
+        <div className="max-w-[1400px] mx-auto space-y-6 p-4 lg:p-6 animate-fade-in text-secondary">
+
+            {/* --- Compact Header --- */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-primary/10 rounded-lg text-primary border border-primary/20 shadow-sm">
+                            <MdInventory size={16} />
+                        </div>
+                        <span className="text-primary font-black tracking-widest text-[9px] uppercase italic bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10">Inventory Management</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-secondary tracking-tight italic leading-none">Add Quantity</h1>
+                    <p className="text-zinc-500 text-[11px] font-medium">Update stock levels with full audit trail</p>
                 </div>
-                <button onClick={exportData} className="flex items-center gap-2 bg-white text-secondary border border-zinc-200 px-6 py-3 rounded-2xl hover:bg-zinc-50 transition-all font-bold text-sm shadow-sm">
-                    <FileDown size={18} className="text-primary" /> Export Data
+
+                <button onClick={exportData} className="flex items-center gap-2 bg-white text-secondary border border-zinc-100 px-4 py-2.5 rounded-xl hover:bg-zinc-50 transition-all font-bold text-xs shadow-sm cursor-pointer">
+                    <MdFileDownload size={18} className="text-primary" /> Export Data
                 </button>
             </div>
 
-            {/* Stats Quick View */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* --- Stats Quick View --- */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {stats.map((stat, i) => (
-                    <motion.div
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                        whileHover={{ y: -5 }}
-                        key={stat.title}
-                        className="bg-white p-5 rounded-3xl border border-zinc-100 shadow-premium group transition-all hover:shadow-2xl"
-                    >
-                        <div className="flex justify-between items-start mb-4">
-                            <div className={`p-4 rounded-2xl ${stat.color} bg-opacity-10 text-${stat.color.split('-')[1] === 'primary' ? 'primary-dark' : stat.color.split('-')[1] + '-700'}`}>
-                                {stat.icon}
-                            </div>
-                            <span className="text-[10px] font-black px-3 py-1 rounded-full bg-accent/10 text-accent border border-accent/5 uppercase tracking-wider">
-                                {stat.trend}
-                            </span>
+                    <div key={i} className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-3.5 group hover:border-primary/30 transition-all">
+                        <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform`}>
+                            {stat.icon}
                         </div>
-                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest leading-none">{stat.title}</p>
-                        <h3 className="text-2xl font-black text-secondary mt-2">{stat.value}</h3>
-                    </motion.div>
+                        <div>
+                            <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">{stat.title}</p>
+                            <h3 className="text-lg font-black text-secondary leading-none">{stat.value}</h3>
+                            <p className="text-[7px] font-bold text-zinc-300 uppercase italic mt-1">{stat.trend}</p>
+                        </div>
+                    </div>
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Modern Form Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* --- Form Section --- */}
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="lg:col-span-12 xl:col-span-5"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="lg:col-span-5"
                 >
-                    <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-2xl shadow-zinc-200/50 relative overflow-hidden">
-                        <h2 className="text-2xl font-black text-secondary mb-8 flex items-center gap-4">
-                            <div className="w-12 h-12 bg-orange-200 rounded-2xl flex items-center justify-center text-secondary shadow-lg shadow-primary/30">
-                                <Plus size={26} strokeWidth={3} />
+                    <div className="bg-white p-5 rounded-[2rem] border border-zinc-100 shadow-premium relative overflow-hidden">
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary shadow-inner">
+                                <MdAdd size={20} />
                             </div>
-                            Stock Arrival Entry
-                        </h2>
+                            <div>
+                                <h2 className="text-base font-black text-secondary tracking-tight uppercase">Stock Arrival Entry</h2>
+                                <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Add New Inventory</p>
+                            </div>
+                        </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-600 uppercase ml-1 flex items-center gap-1.5 tracking-wider">
-                                    <Package size={14} className="text-primary" /> Product Name
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Enter full product name"
-                                    className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 px-6 text-secondary font-bold outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all"
-                                    value={formData.productName}
-                                    onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                                />
+                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Product Name</label>
+                                <div className="relative">
+                                    <MdInventory className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
+                                        value={formData.productName}
+                                        onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                                        placeholder="e.g., Premium Basmati Rice"
+                                    />
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-5">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-zinc-600 uppercase ml-1 tracking-wider">Category</label>
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Category</label>
+                                <div className="relative">
+                                    <MdCategory className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
                                     <select
-                                        className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 px-6 text-secondary font-bold outline-none focus:border-primary focus:bg-white transition-all appearance-none cursor-pointer"
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm appearance-none"
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                     >
                                         <option value="ingredients">Ingredients</option>
-                                        <option value="stationery">Stationery</option>
+                                        <option value="snacks">Snacks</option>
                                         <option value="packaging">Packaging</option>
                                         <option value="others">Others</option>
                                     </select>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-zinc-600 uppercase ml-1 tracking-wider">Unit Type</label>
-                                    <select
-                                        className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 px-6 text-secondary font-bold outline-none focus:border-primary focus:bg-white transition-all appearance-none cursor-pointer"
-                                        value={formData.unit}
-                                        onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                                    >
-                                        <option value="kg">KG</option>
-                                        <option value="ltr">LITERS</option>
-                                        <option value="pcs">PIECES</option>
-                                        <option value="pkt">PACKETS</option>
-                                    </select>
-                                </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-600 uppercase ml-1 tracking-wider">Exact Quantity</label>
-                                <div className="relative group">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Quantity</label>
                                     <input
                                         type="number"
                                         required
-                                        step="any"
-                                        placeholder="0.00"
-                                        className="w-full bg-zinc-50 border-2 border-zinc-200/50 rounded-2xl py-5 px-6 text-secondary text-4xl font-black outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all"
+                                        min="0"
+                                        step="0.01"
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
                                         value={formData.quantity}
                                         onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                                        placeholder="0"
                                     />
-                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                                        <span className="bg-primary/10 text-primary-dark font-black px-4 py-2 rounded-xl text-sm uppercase">
-                                            {formData.unit}
-                                        </span>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Unit</label>
+                                    <div className="relative">
+                                        <MdScale className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
+                                        <select
+                                            className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-10 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm appearance-none"
+                                            value={formData.unit}
+                                            onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                                        >
+                                            <option value="kg">kg</option>
+                                            <option value="ltr">ltr</option>
+                                            <option value="pcs">pcs</option>
+                                            <option value="pkt">pkt</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-600 uppercase ml-1 tracking-wider">Notes / Remarks</label>
-                                <textarea
-                                    placeholder="Enter details like Batch No. or Supplier name..."
-                                    rows="2"
-                                    className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl py-4 px-6 text-secondary font-bold outline-none focus:border-primary focus:bg-white transition-all resize-none"
-                                    value={formData.notes}
-                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                ></textarea>
+                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Notes (Optional)</label>
+                                <div className="relative">
+                                    <MdInfo className="absolute left-4 top-4 text-zinc-300 text-lg" />
+                                    <textarea
+                                        rows="3"
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm resize-none"
+                                        value={formData.notes}
+                                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                        placeholder="Add any additional information..."
+                                    />
+                                </div>
                             </div>
 
                             <button
                                 type="submit"
-                                className="w-full bg-secondary text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-secondary/30 hover:shadow-2xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-3 text-lg mt-2"
+                                className="w-full bg-secondary text-primary font-black py-3.5 rounded-xl shadow-lg shadow-secondary/10 hover:shadow-xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm group mt-2 cursor-pointer"
                             >
-                                <Save size={24} strokeWidth={3} />
-                                CONFIRM & UPDATE
+                                <MdSave size={18} className="group-hover:rotate-12 transition-transform" />
+                                ADD TO INVENTORY
                             </button>
                         </form>
+
+                        {/* Decor */}
+                        <MdInventory size={200} className="absolute -bottom-12 -right-12 text-secondary/[0.02] -rotate-12 pointer-events-none" />
                     </div>
                 </motion.div>
 
-                {/* Enhanced List Section */}
+                {/* --- Recent Entries Log --- */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="lg:col-span-12 xl:col-span-7"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="lg:col-span-7"
                 >
-                    <div className="bg-white rounded-3xl border border-zinc-100 shadow-premium overflow-hidden flex flex-col h-full max-h-[850px]">
-                        <div className="p-6 border-b border-zinc-50 bg-[#fafafa] space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-2xl font-black text-secondary tracking-tight">Activity Log</h2>
-                                    <p className="text-zinc-500 text-[11px] font-black uppercase tracking-widest mt-1">Audit Trail for Inventory</p>
+                    <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-premium overflow-hidden">
+                        <div className="p-5 bg-zinc-50/50 border-b border-zinc-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shadow-inner">
+                                    <MdHistory size={20} />
                                 </div>
-                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center border border-zinc-200 text-primary shadow-sm">
-                                    <History size={22} />
+                                <div>
+                                    <h2 className="text-base font-black text-secondary tracking-tight uppercase">Recent Entries</h2>
+                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Activity Log</p>
                                 </div>
                             </div>
+                            <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest bg-white border border-zinc-100 px-3 py-2 rounded-lg shadow-sm">{recentEntries.length} Records</span>
+                        </div>
 
-                            {/* Search Bar */}
-                            <div className="relative group">
-                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary transition-colors" />
+                        {/* Search Bar */}
+                        <div className="p-5 border-b border-zinc-100">
+                            <div className="relative">
+                                <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-300" />
                                 <input
                                     type="text"
-                                    placeholder="Search by product name or category..."
-                                    className="w-full bg-white border-2 border-zinc-200 rounded-2xl py-4.5 pl-15 pr-12 text-secondary font-bold outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all text-sm shadow-sm"
+                                    placeholder="Search entries..."
+                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 text-secondary font-bold outline-none focus:border-primary transition-all text-sm shadow-sm"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto max-h-[600px] custom-scrollbar">
-                            <AnimatePresence mode='popLayout'>
-                                {filteredEntries.map((item, idx) => (
+                        {/* Entries List */}
+                        <div className="max-h-[500px] overflow-y-auto">
+                            <AnimatePresence>
+                                {filteredEntries.map((entry) => (
                                     <motion.div
-                                        layout
-                                        initial={{ opacity: 0, y: 10 }}
+                                        key={entry.id}
+                                        initial={{ opacity: 0, y: -10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
-                                        key={item.id}
-                                        className={`p-4 flex items-center justify-between group transition-all hover:bg-zinc-50 ${idx !== filteredEntries.length - 1 ? 'border-b border-zinc-100' : ''}`}
+                                        exit={{ opacity: 0, x: -100 }}
+                                        className="p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors group"
                                     >
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-16 h-16 bg-zinc-50 rounded-2xl flex items-center justify-center text-primary font-black text-2xl border-2 border-transparent group-hover:border-primary/30 group-hover:bg-white transition-all shadow-sm">
-                                                {item.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <h4 className="font-black text-secondary text-xl leading-tight uppercase truncate max-w-[150px] sm:max-w-[300px]">{item.name}</h4>
-                                                <div className="flex items-center gap-3 mt-2">
-                                                    <span className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-100 px-3 py-1 rounded-lg border border-zinc-200 tracking-wider ">{item.category}</span>
-                                                    <div className="w-1.5 h-1.5 bg-zinc-200 rounded-full" />
-                                                    <span className="text-[11px] font-bold text-zinc-400 uppercase">{item.date}</span>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center text-primary font-black border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-sm">
+                                                    {entry.name.charAt(0)}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{entry.name}</h4>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">{entry.category}</span>
+                                                        <span className="text-[8px] font-bold text-zinc-300">•</span>
+                                                        <span className="text-[8px] font-bold text-zinc-400 uppercase">{entry.date}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-8">
-                                            <div className="text-right">
-                                                <p className="text-2xl font-black text-accent flex items-center justify-end gap-1">
-                                                    <Plus size={18} strokeWidth={4} />
-                                                    {item.quantity}
-                                                    <span className="text-[11px] font-bold text-zinc-400 uppercase ml-1 tracking-widest">{item.unit}</span>
-                                                </p>
-                                                <span className="text-[10px] font-black uppercase text-accent/80 flex items-center justify-end gap-1.5 mt-1">
-                                                    <CheckCircle2 size={12} strokeWidth={3} /> VERIFIED
-                                                </span>
+                                            <div className="flex items-center gap-3">
+                                                <div className="text-right mr-3">
+                                                    <p className="font-black text-secondary text-base leading-none">{entry.quantity}</p>
+                                                    <p className="text-[8px] font-bold text-zinc-400 uppercase">{entry.unit}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => deleteEntry(entry.id)}
+                                                    className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg text-red-500 hover:text-red-600 transition-all border border-red-100 flex items-center justify-center shadow-sm cursor-pointer"
+                                                >
+                                                    <MdDelete size={16} />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => deleteEntry(item.id)}
-                                                className="w-11 h-11 flex items-center justify-center text-zinc-300 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm border border-transparent hover:border-red-100"
-                                            >
-                                                <Trash2 size={22} />
-                                            </button>
                                         </div>
                                     </motion.div>
                                 ))}
                             </AnimatePresence>
-
-                            {filteredEntries.length === 0 && (
-                                <div className="p-24 text-center">
-                                    <p className="text-zinc-300 font-black text-xl uppercase tracking-widest">No matching logs found</p>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </motion.div>

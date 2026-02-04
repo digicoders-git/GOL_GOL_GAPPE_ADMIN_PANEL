@@ -22,20 +22,34 @@
   --text-muted: #6b4423;
 }
 
-/* * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
-} */
+
 
 button,
 a,
 select,
 label,
 [role="button"],
-.cursor-pointer {
+.cursor-pointer,
+.clickable,
+.interactive {
   cursor: pointer;
+  user-select: none;
+}
+
+/* Interactive states */
+.hover-scale:hover {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+.active-scale:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
 }
 
 body {
