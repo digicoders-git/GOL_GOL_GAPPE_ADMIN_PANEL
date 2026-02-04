@@ -24,7 +24,7 @@ import {
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { getProducts, getStockLogs } from '../utils/api';
+import { getProducts, getStockLogs, getUserInventory } from '../utils/api';
 import { useEffect } from 'react';
 
 // Initialize 3D module
@@ -41,20 +41,36 @@ const DayWiseStock = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchData = async () => {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const role = user.role || 'super_admin';
+
         try {
             setLoading(true);
-            const response = await getProducts();
+            const response = role === 'super_admin' ? await getProducts() : await getUserInventory();
+            const logRes = await getStockLogs();
+
             if (response.data.success) {
-                const movements = response.data.products.map((p, i) => ({
-                    id: p._id,
-                    item: p.name,
-                    opening: p.quantity, // Simplified for now
-                    added: 0,
-                    sold: 0,
-                    balanced: p.quantity,
-                    waste: 0,
-                    status: p.status === 'In Stock' ? 'Surplus' : 'Deficit'
-                }));
+                const rawProducts = role === 'super_admin' ? response.data.products : response.data.inventory;
+                const logs = logRes.data.success ? logRes.data.logs : [];
+
+                const movements = rawProducts.map((p, i) => {
+                    const item = p.product || p;
+                    const itemLogs = logs.filter(l => l.product?._id === item._id && l.createdAt.startsWith(selectedDate));
+
+                    const added = itemLogs.filter(l => l.type === 'Add').reduce((acc, curr) => acc + curr.quantity, 0);
+                    const sold = itemLogs.filter(l => l.type === 'Sale' || l.type === 'Bill').reduce((acc, curr) => acc + curr.quantity, 0);
+
+                    return {
+                        id: item._id,
+                        item: item.name,
+                        opening: (p.quantity || item.quantity) + sold - added,
+                        added,
+                        sold,
+                        balanced: p.quantity || item.quantity,
+                        waste: itemLogs.filter(l => l.type === 'Adjustment' && l.quantity < 0).reduce((acc, curr) => acc + Math.abs(curr.quantity), 0),
+                        status: (p.quantity || item.quantity) > 10 ? 'Surplus' : 'Deficit'
+                    };
+                });
                 setStockMovements(movements);
             }
         } catch (error) {

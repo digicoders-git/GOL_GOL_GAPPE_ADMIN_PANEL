@@ -19,6 +19,10 @@ const KitchenManagement = lazy(() => import('./pages/KitchenManagement'));
 const DayWiseStock = lazy(() => import('./pages/DayWiseStock'));
 const MonthWiseStock = lazy(() => import('./pages/MonthWiseStock'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const ManageAdmins = lazy(() => import('./pages/ManageAdmins'));
+const MyInventory = lazy(() => import('./pages/MyInventory'));
+const KitchenOrders = lazy(() => import('./pages/KitchenOrders'));
+const Reports = lazy(() => import('./pages/Reports'));
 
 function App() {
   return (
@@ -45,6 +49,10 @@ function App() {
             <Route path="day-stock" element={<DayWiseStock />} />
             <Route path="month-stock" element={<MonthWiseStock />} />
             <Route path="change-password" element={<ChangePassword />} />
+            <Route path="manage-admins" element={<ManageAdmins />} />
+            <Route path="my-inventory" element={<MyInventory />} />
+            <Route path="kitchen-orders" element={<KitchenOrders />} />
+            <Route path="reports" element={<Reports />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />

@@ -64,15 +64,27 @@ const AddBilling = () => {
     const searchRef = useRef(null);
 
     const fetchData = async () => {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const role = user.role || 'super_admin';
+
         try {
             setLoading(true);
-            const [prodRes, kitchenRes] = await Promise.all([getProducts(), getKitchens()]);
+            const [prodRes, kitchenRes] = await Promise.all([
+                role === 'super_admin' ? getProducts() : getUserInventory(),
+                getKitchens()
+            ]);
+
             if (prodRes.data.success) {
-                setProducts(prodRes.data.products.map(p => ({
-                    ...p,
-                    id: p._id,
-                    icon: <MdFastfood className="text-orange-500" /> // Default icon
-                })));
+                const rawProducts = role === 'super_admin' ? prodRes.data.products : prodRes.data.inventory;
+                setProducts(rawProducts.map(p => {
+                    const item = p.product || p;
+                    return {
+                        ...item,
+                        id: item._id,
+                        quantityInHand: p.quantity || item.quantity,
+                        icon: <MdFastfood className="text-orange-500" />
+                    };
+                }));
             }
             if (kitchenRes.data.success) {
                 setKitchens(kitchenRes.data.kitchens);

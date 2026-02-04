@@ -1,126 +1,92 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     MdSwapHoriz,
-    MdLocationOn,
     MdInventory,
     MdRestaurant,
     MdSend,
     MdHistory,
-    MdDelete,
-    MdCheckCircle,
     MdAccessTime,
-    MdAdd,
-    MdArrowForward,
     MdLocalShipping,
     MdPerson,
-    MdNotes
+    MdNotes,
+    MdArrowForward,
+    MdCheckCircle
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
-import Swal from 'sweetalert2';
-import Highcharts from 'highcharts';
-import HighchartsReact from 'highcharts-react-official';
-import Highcharts3D from 'highcharts/highcharts-3d';
-
-// Initialize 3D module
-if (typeof Highcharts3D === 'function') {
-    Highcharts3D(Highcharts);
-}
+import { getProducts, getUsers, transferStock, getTransferHistory, getUserInventory } from '../utils/api';
 
 const ProductAssign = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role || 'super_admin';
+
     const [formData, setFormData] = useState({
-        product: '',
-        kitchen: '',
+        productId: '',
+        toUserId: '',
         quantity: '',
-        staff: '',
         notes: ''
     });
 
-    const [assignments, setAssignments] = useState([
-        { id: 1, product: 'Regular Gol Gappe', kitchen: 'Main Kitchen', quantity: 500, unit: 'pcs', staff: 'Rahul', time: '10:30 AM', status: 'delivered' },
-        { id: 2, product: 'Masala Water', kitchen: 'Counter A', quantity: 20, unit: 'ltr', staff: 'Anita', time: '11:15 AM', status: 'shipped' },
-        { id: 3, product: 'Atta (Premium)', kitchen: 'Basement Store', quantity: 50, unit: 'kg', staff: 'Suresh', time: '09:00 AM', status: 'delivered' },
-    ]);
+    const [products, setProducts] = useState([]);
+    const [recipientUsers, setRecipientUsers] = useState([]);
+    const [transfers, setTransfers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    const [products] = useState([
-        { id: 'p1', name: 'Regular Gol Gappe', unit: 'pcs', currentStock: 4500 },
-        { id: 'p2', name: 'Masala Water', unit: 'ltr', currentStock: 80 },
-        { id: 'p3', name: 'Atta (Premium)', unit: 'kg', currentStock: 220 },
-        { id: 'p4', name: 'Cooking Oil', unit: 'ltr', currentStock: 15 },
-    ]);
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [prodRes, userRes, transRes] = await Promise.all([
+                role === 'super_admin' ? getProducts() : getUserInventory(),
+                getUsers(),
+                getTransferHistory()
+            ]);
 
-    const [kitchens] = useState([
-        { id: 'k1', name: 'Main Kitchen', location: 'Section A' },
-        { id: 'k2', name: 'Counter A', location: 'Gate 1' },
-        { id: 'k3', name: 'Counter B', location: 'Main Entrance' },
-        { id: 'k4', name: 'Kitchen 2', location: 'Floor 1' },
-    ]);
+            if (prodRes.data.success) {
+                setProducts(role === 'super_admin' ? prodRes.data.products : prodRes.data.inventory);
+            }
+            if (userRes.data.success) {
+                // Filter recipients: Super Admin can transfer to anyone. Billing Admin can transfer to Kitchen Admin.
+                const filtered = userRes.data.users.filter(u => {
+                    if (role === 'super_admin') return u.role !== 'super_admin';
+                    if (role === 'billing_admin') return u.role === 'kitchen_admin';
+                    return false;
+                });
+                setRecipientUsers(filtered);
+            }
+            if (transRes.data.success) {
+                setTransfers(transRes.data.transfers);
+            }
+        } catch (error) {
+            toast.error('Failed to load data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const handleAssign = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await transferStock(formData);
+            if (response.data.success) {
+                toast.success('Stock transferred successfully!');
+                setFormData({ productId: '', toUserId: '', quantity: '', notes: '' });
+                fetchData();
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Transfer failed');
+        }
+    };
 
     const stats = useMemo(() => [
-        { title: 'Today Assigned', value: '850 Units', icon: <MdSwapHoriz />, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { title: 'Pending Pickup', value: '12 Items', icon: <MdAccessTime />, color: 'text-orange-600', bg: 'bg-orange-50' },
-        { title: 'Active Kitchens', value: kitchens.length, icon: <MdRestaurant />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-        { title: 'Most Moved', value: 'Gol Gappe', icon: <MdInventory />, color: 'text-purple-600', bg: 'bg-purple-50' },
-    ], [kitchens.length]);
-
-    const handleAssign = (e) => {
-        e.preventDefault();
-        if (!formData.product || !formData.kitchen || !formData.quantity) {
-            toast.error('Please fill all required fields!');
-            return;
-        }
-
-        const selectedProd = products.find(p => p.name === formData.product);
-
-        const newAssignment = {
-            id: Date.now(),
-            product: formData.product,
-            kitchen: formData.kitchen,
-            quantity: Number(formData.quantity),
-            unit: selectedProd?.unit || 'units',
-            staff: formData.staff || 'Admin',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'shipped'
-        };
-
-        setAssignments([newAssignment, ...assignments]);
-        setFormData({ product: '', kitchen: '', quantity: '', staff: '', notes: '' });
-        toast.success('Product successfully assigned! 🚚', {
-            style: { borderRadius: '12px', background: '#2D1B0D', color: '#fff' },
-        });
-    };
-
-    const deleteAssignment = (id) => {
-        Swal.fire({
-            title: 'Delete Assignment?',
-            text: "This record will be permanently removed.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: '#71717a',
-            confirmButtonText: 'Yes, delete it!',
-            background: '#ffffff',
-            customClass: {
-                popup: 'rounded-[2rem]',
-                confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-sm',
-                cancelButton: 'px-6 py-2.5 rounded-xl font-bold text-sm'
-            }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                setAssignments(assignments.filter(a => a.id !== id));
-                Swal.fire({
-                    title: 'Deleted!',
-                    text: 'Record has been removed.',
-                    icon: 'success',
-                    confirmButtonColor: '#10b981',
-                    customClass: {
-                        popup: 'rounded-[2rem]',
-                        confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-sm'
-                    }
-                });
-            }
-        });
-    };
+        { title: 'Total Transfers', value: transfers.length, icon: <MdSwapHoriz />, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { title: 'Recent Item', value: transfers[0]?.product?.name || 'N/A', icon: <MdAccessTime />, color: 'text-orange-600', bg: 'bg-orange-50' },
+        { title: 'Connected Nodes', value: recipientUsers.length, icon: <MdRestaurant />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        { title: 'Stock Types', value: products.length, icon: <MdInventory />, color: 'text-purple-600', bg: 'bg-purple-50' },
+    ], [transfers, recipientUsers.length, products.length]);
 
     return (
         <div className="max-w-[1400px] mx-auto space-y-6 p-4 lg:p-6 animate-fade-in text-secondary">
@@ -171,106 +137,28 @@ const ProductAssign = () => {
                             backgroundColor: 'transparent',
                             height: 300,
                             style: { fontFamily: 'inherit' },
-                            animation: {
-                                duration: 2000,
-                                easing: 'easeOutBounce'
-                            },
-                            options3d: {
-                                enabled: true,
-                                alpha: 10,
-                                beta: 15,
-                                depth: 50,
-                                viewDistance: 25
-                            }
                         },
                         title: { text: null },
                         xAxis: {
-                            categories: kitchens.map(k => k.name),
+                            categories: recipientUsers.map(u => u.email.split('@')[0]),
                             labels: {
-                                style: {
-                                    color: '#94a3b8',
-                                    fontWeight: '900',
-                                    fontSize: '9px',
-                                    textTransform: 'uppercase'
-                                },
-                                rotation: -15
+                                style: { color: '#94a3b8', fontWeight: '900', fontSize: '9px' }
                             },
-                            gridLineWidth: 0,
-                            lineColor: '#e2e8f0'
                         },
                         yAxis: {
                             title: { text: null },
-                            labels: {
-                                style: {
-                                    color: '#94a3b8',
-                                    fontWeight: '900',
-                                    fontSize: '10px'
-                                }
-                            },
-                            gridLineColor: '#f1f5f9',
-                            gridLineDashStyle: 'Dash'
-                        },
-                        tooltip: {
-                            useHTML: true,
-                            headerFormat: '<div style="padding: 8px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 8px 8px 0 0; margin: -8px -8px 8px -8px;"><span style="font-size: 11px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 1px;">{point.key}</span></div>',
-                            pointFormat: '<div style="display: flex; align-items: center; gap: 8px; padding: 4px 0;"><span style="color:{point.color}; font-size: 20px;">●</span><span style="font-weight: 800; color: #1e293b; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">Assigned:</span><b style="color: #8b5cf6; font-size: 16px; margin-left: auto;">{point.y} items</b></div>',
-                            backgroundColor: '#ffffff',
-                            borderRadius: 16,
-                            borderWidth: 2,
-                            borderColor: '#8b5cf6',
-                            shadow: {
-                                color: 'rgba(139, 92, 246, 0.3)',
-                                offsetX: 0,
-                                offsetY: 4,
-                                opacity: 0.5,
-                                width: 10
-                            }
-                        },
-                        plotOptions: {
-                            column: {
-                                depth: 40,
-                                borderRadius: 8,
-                                borderWidth: 0,
-                                colorByPoint: true,
-                                grouping: true,
-                                dataLabels: {
-                                    enabled: true,
-                                    style: {
-                                        fontSize: '10px',
-                                        fontWeight: '900',
-                                        color: '#2D1B0D',
-                                        textOutline: '2px #ffffff'
-                                    }
-                                },
-                                states: {
-                                    hover: {
-                                        brightness: 0.1,
-                                        borderColor: '#8b5cf6',
-                                        borderWidth: 2
-                                    }
-                                }
-                            }
+                            labels: { style: { color: '#94a3b8', fontWeight: '900', fontSize: '10px' } },
                         },
                         credits: { enabled: false },
                         legend: { enabled: false },
                         series: [{
-                            name: 'Items Assigned',
-                            data: kitchens.map((k, index) => ({
-                                y: assignments
-                                    .filter(a => a.kitchen === k.name)
+                            name: 'Stock Received',
+                            data: recipientUsers.map((u, index) => ({
+                                y: transfers
+                                    .filter(t => t.toUser?._id === u._id)
                                     .reduce((acc, curr) => acc + curr.quantity, 0),
-                                color: {
-                                    linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-                                    stops: [
-                                        [0, ['#F59E0B', '#10B981', '#3B82F6', '#6366F1'][index % 4]],
-                                        [1, ['#b45309', '#047857', '#1d4ed8', '#4338ca'][index % 4]]
-                                    ]
-                                }
+                                color: ['#F59E0B', '#10B981', '#3B82F6', '#6366F1'][index % 4]
                             })),
-                            animation: {
-                                duration: 2500,
-                                easing: 'easeOutQuart'
-                            }
                         }]
                     }}
                 />
@@ -302,62 +190,51 @@ const ProductAssign = () => {
                                     <select
                                         required
                                         className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm appearance-none"
-                                        value={formData.product}
-                                        onChange={(e) => setFormData({ ...formData, product: e.target.value })}
+                                        value={formData.productId}
+                                        onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
                                     >
                                         <option value="">Select Product</option>
-                                        {products.map(p => (
-                                            <option key={p.id} value={p.name}>{p.name} ({p.currentStock} {p.unit})</option>
+                                        {products.map(p => {
+                                            const item = p.product || p;
+                                            return (
+                                                <option key={p._id} value={item._id}>
+                                                    {item.name} ({p.quantity} {item.unit})
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Recipient Admin</label>
+                                <div className="relative">
+                                    <MdRestaurant className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
+                                    <select
+                                        required
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm appearance-none"
+                                        value={formData.toUserId}
+                                        onChange={(e) => setFormData({ ...formData, toUserId: e.target.value })}
+                                    >
+                                        <option value="">Select Recipient</option>
+                                        {recipientUsers.map(u => (
+                                            <option key={u._id} value={u._id}>{u.email} ({u.role.replace('_', ' ')})</option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Destination Kitchen</label>
-                                <div className="relative">
-                                    <MdRestaurant className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
-                                    <select
-                                        required
-                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm appearance-none"
-                                        value={formData.kitchen}
-                                        onChange={(e) => setFormData({ ...formData, kitchen: e.target.value })}
-                                    >
-                                        <option value="">Select Kitchen</option>
-                                        {kitchens.map(k => (
-                                            <option key={k.id} value={k.name}>{k.name} - {k.location}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Quantity</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        min="1"
-                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
-                                        value={formData.quantity}
-                                        onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                                        placeholder="0"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Staff Name</label>
-                                    <div className="relative">
-                                        <MdPerson className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
-                                        <input
-                                            type="text"
-                                            className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-10 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
-                                            value={formData.staff}
-                                            onChange={(e) => setFormData({ ...formData, staff: e.target.value })}
-                                            placeholder="Optional"
-                                        />
-                                    </div>
-                                </div>
+                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Quantity</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="1"
+                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
+                                    value={formData.quantity}
+                                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                                    placeholder="0"
+                                />
                             </div>
 
                             <div className="space-y-2">
@@ -379,7 +256,7 @@ const ProductAssign = () => {
                                 className="w-full bg-secondary text-primary font-black py-3.5 rounded-xl shadow-lg shadow-secondary/10 hover:shadow-xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm group mt-2 cursor-pointer"
                             >
                                 <MdSend size={18} className="group-hover:translate-x-1 transition-transform" />
-                                ASSIGN PRODUCT
+                                TRANSFER STOCK
                             </button>
                         </form>
                     </div>
@@ -402,7 +279,7 @@ const ProductAssign = () => {
                                     <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Recent Transfers</p>
                                 </div>
                             </div>
-                            <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest bg-white border border-zinc-100 px-3 py-2 rounded-lg shadow-sm">{assignments.length} Records</span>
+                            <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest bg-white border border-zinc-100 px-3 py-2 rounded-lg shadow-sm">{transfers.length} Records</span>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -418,9 +295,9 @@ const ProductAssign = () => {
                                 </thead>
                                 <tbody className="divide-y divide-zinc-50">
                                     <AnimatePresence>
-                                        {assignments.map((assign) => (
+                                        {transfers.map((assign) => (
                                             <motion.tr
-                                                key={assign.id}
+                                                key={assign._id}
                                                 initial={{ opacity: 0, y: -10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, x: -100 }}
@@ -429,41 +306,34 @@ const ProductAssign = () => {
                                                 <td className="px-5 py-3.5">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-9 h-9 bg-zinc-100 rounded-xl flex items-center justify-center text-primary font-black border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-xs">
-                                                            {assign.product.charAt(0)}
+                                                            {assign.product?.name?.charAt(0)}
                                                         </div>
                                                         <div>
-                                                            <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{assign.product}</h4>
+                                                            <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{assign.product?.name}</h4>
                                                             <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1">
-                                                                <MdAccessTime size={10} /> {assign.time}
+                                                                <MdAccessTime size={10} /> {new Date(assign.createdAt).toLocaleTimeString()}
                                                             </p>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-2 text-zinc-600 text-xs font-bold">
-                                                        <MdLocationOn size={14} className="text-primary" />
-                                                        {assign.kitchen}
+                                                    <div className="flex items-center gap-2 text-zinc-600 text-[10px] font-bold">
+                                                        {assign.fromUser?.email.split('@')[0]} <MdArrowForward className="text-primary" /> {assign.toUser?.email.split('@')[0]}
                                                     </div>
                                                 </td>
                                                 <td className="px-5 py-3.5 text-center">
                                                     <span className="inline-block px-3 py-1.5 bg-secondary text-white rounded-lg font-black text-xs shadow-sm">
-                                                        {assign.quantity} {assign.unit}
+                                                        {assign.quantity} {assign.product?.unit}
                                                     </span>
                                                 </td>
                                                 <td className="px-5 py-3.5 text-center">
-                                                    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${assign.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-orange-50 text-orange-600 border border-orange-100'
-                                                        }`}>
+                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100">
                                                         <MdCheckCircle size={12} />
-                                                        {assign.status}
+                                                        Success
                                                     </div>
                                                 </td>
-                                                <td className="px-5 py-3.5 text-right">
-                                                    <button
-                                                        onClick={() => deleteAssignment(assign.id)}
-                                                        className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg text-red-500 hover:text-red-600 transition-all border border-red-100 flex items-center justify-center shadow-sm cursor-pointer"
-                                                    >
-                                                        <MdDelete size={16} />
-                                                    </button>
+                                                <td className="px-5 py-3.5 text-right font-bold text-zinc-400 text-[10px]">
+                                                    {new Date(assign.createdAt).toLocaleDateString()}
                                                 </td>
                                             </motion.tr>
                                         ))}

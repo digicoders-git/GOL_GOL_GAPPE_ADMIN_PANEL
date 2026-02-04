@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getBills } from '../utils/api';
+import { getBills, getKitchenOrders } from '../utils/api';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import {
@@ -38,9 +38,13 @@ const BillingManagement = () => {
     const itemsPerPage = 8;
 
     const fetchBills = async () => {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const role = user.role || 'super_admin';
+
         try {
             setLoading(true);
-            const response = await getBills();
+            const response = role === 'kitchen_admin' ? await getKitchenOrders() : await getBills();
+
             if (response.data.success) {
                 const mappedBills = response.data.bills.map(b => ({
                     id: b.billNumber,
@@ -48,7 +52,7 @@ const BillingManagement = () => {
                     amount: b.totalAmount,
                     date: new Date(b.createdAt).toLocaleDateString('en-IN'),
                     time: new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                    status: b.status.charAt(0).toUpperCase() + b.status.slice(1),
+                    status: b.status.charAt(0).toUpperCase() + b.status.slice(1).replace(/_/g, ' '),
                     method: b.paymentMethod
                 }));
                 setTransactions(mappedBills);

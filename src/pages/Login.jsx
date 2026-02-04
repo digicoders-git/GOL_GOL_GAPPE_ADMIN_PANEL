@@ -69,7 +69,7 @@ const Login = () => {
                                     type="email"
                                     required
                                     placeholder="Enter email"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm text-white outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl  py-3 pl-11 pr-4 text-sm  outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all text-white"
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 />

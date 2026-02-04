@@ -16,22 +16,52 @@ import {
 import logo from '../../assets/logo.jpeg';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
-    const menuItems = [
-        { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-        { name: 'Add Quantity', icon: <PlusCircle size={20} />, path: '/add-quantity' },
-        { name: 'Product Quantity', icon: <PackagePlus size={20} />, path: '/product-quantity' },
-        { name: 'Product Assign', icon: <ArrowLeftRight size={20} />, path: '/product-assign' },
-        { name: 'Add Billing', icon: <Receipt size={20} />, path: '/add-billing' },
-        { name: 'Billing Management', icon: <Settings size={20} />, path: '/billing-management' },
-        { name: 'Add Kitchen', icon: <ChefHat size={20} />, path: '/add-kitchen' },
-        { name: 'Kitchen Management', icon: <Settings size={20} />, path: '/kitchen-management' },
+    const userString = localStorage.getItem('user');
+    const user = userString ? JSON.parse(userString) : { role: 'super_admin' };
+    const role = user.role;
 
-        { name: 'Day Wise Stock', icon: <TrendingUp size={20} />, path: '/day-stock' },
-        { name: 'Month Wise Stock', icon: <CalendarDays size={20} />, path: '/month-stock' },
+    const allMenuItems = {
+        super_admin: [
+            { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+            { name: 'Manage Admins', icon: <Settings size={20} />, path: '/manage-admins' },
+            { name: 'Add Quantity', icon: <PlusCircle size={20} />, path: '/add-quantity' },
+            { name: 'Global Stock', icon: <PackagePlus size={20} />, path: '/product-quantity' },
+            { name: 'Transfer Stock', icon: <ArrowLeftRight size={20} />, path: '/product-assign' },
+            { name: 'Kitchen Fleet', icon: <ChefHat size={20} />, path: '/kitchen-management' },
+            { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
+        ],
+        billing_admin: [
+            { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+            { name: 'Assign Orders', icon: <Receipt size={20} />, path: '/add-billing' },
+            { name: 'Billing Records', icon: <Settings size={20} />, path: '/billing-management' },
+            { name: 'My Inventory', icon: <Boxes size={20} />, path: '/my-inventory' },
+            { name: 'Transfer to Kitchen', icon: <ArrowLeftRight size={20} />, path: '/product-assign' },
+            { name: 'Stock History', icon: <CalendarDays size={20} />, path: '/day-stock' },
+            { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
+        ],
+        kitchen_admin: [
+            { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+            { name: 'Kitchen Orders', icon: <ChefHat size={20} />, path: '/kitchen-orders' },
+            { name: 'My Stock', icon: <Boxes size={20} />, path: '/my-inventory' },
+            { name: 'Stock Log', icon: <CalendarDays size={20} />, path: '/day-stock' },
+            { name: 'Order History', icon: <Receipt size={20} />, path: '/billing-management' },
+            { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
+        ]
+    };
+
+    const commonItems = [
         { name: 'Change Password', icon: <KeyRound size={20} />, path: '/change-password' },
     ];
 
-    const navigate = useNavigate()
+    const menuItems = [...(allMenuItems[role] || allMenuItems.super_admin), ...commonItems];
+
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+    };
 
     return (
         <aside
@@ -76,7 +106,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 {/* Logout Button */}
                 <div className="p-4 mt-auto border-t border-white/10">
                     <button
-                        onClick={() => navigate('/login')}
+                        onClick={handleLogout}
                         className="flex items-center gap-4 px-4 py-3.5 w-full rounded-xl text-red-400 hover:bg-red-400/10 transition-colors group relative">
                         <LogOut size={20} />
                         {isOpen && <span className="text-sm font-medium">Logout</span>}

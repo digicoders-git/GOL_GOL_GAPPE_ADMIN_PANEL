@@ -56,7 +56,7 @@ const Login = ({ setIsAuthenticated }) => {
               placeholder="Email"
               value={formData.email}
               onChange={(e) => setFormData({...formData, email: e.target.value})}
-              className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-400 transition-all duration-300 bg-gray-50 focus:bg-white group-hover:border-orange-300"
+              className="w-full px-6 py-4 border-2 text-white border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-400 transition-all duration-300 bg-gray-50 focus:bg-white group-hover:border-orange-300"
               required
             />
           </div>

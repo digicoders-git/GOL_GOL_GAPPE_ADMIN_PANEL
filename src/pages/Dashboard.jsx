@@ -26,7 +26,7 @@ import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import Highcharts3D from 'highcharts/highcharts-3d';
 import toast from 'react-hot-toast';
-import { getProducts, getBills, getKitchens } from '../utils/api';
+import { getProducts, getBills, getKitchens, getUserInventory } from '../utils/api';
 
 // Initialize 3D module
 if (typeof Highcharts3D === 'function') {
@@ -35,6 +35,9 @@ if (typeof Highcharts3D === 'function') {
 
 const Dashboard = () => {
     const navigate = useNavigate();
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = user.role || 'super_admin';
+
     const [timeRange, setTimeRange] = useState('24h');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -45,48 +48,36 @@ const Dashboard = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // Quick Actions
-    const quickActions = [
-        {
-            title: 'Add Billing',
-            icon: <MdReceipt />,
-            color: 'text-blue-600',
-            bg: 'bg-blue-50',
-            path: '/add-billing',
-            description: 'Create new bill'
-        },
-        {
-            title: 'Add Quantity',
-            icon: <MdAdd />,
-            color: 'text-orange-600',
-            bg: 'bg-orange-50',
-            path: '/add-quantity',
-            description: 'Update stock'
-        },
-        {
-            title: 'Assign Product',
-            icon: <MdSwapHoriz />,
-            color: 'text-purple-600',
-            bg: 'bg-purple-50',
-            path: '/product-assign',
-            description: 'Transfer items'
-        },
-        {
-            title: 'Add Kitchen',
-            icon: <MdRestaurant />,
-            color: 'text-emerald-600',
-            bg: 'bg-emerald-50',
-            path: '/add-kitchen',
-            description: 'New kitchen'
-        },
-    ];
+    // Role-based Quick Actions
+    const roleQuickActions = {
+        super_admin: [
+            { title: 'Add Bulk Stock', icon: <MdAdd />, color: 'text-orange-600', bg: 'bg-orange-50', path: '/add-quantity', description: 'Restock master inventory' },
+            { title: 'Inventory Assign', icon: <MdSwapHoriz />, color: 'text-purple-600', bg: 'bg-purple-50', path: '/product-assign', description: 'Allocate to admins' },
+            { title: 'New Admin', icon: <MdPeople />, color: 'text-blue-600', bg: 'bg-blue-50', path: '/manage-admins', description: 'Add billing/kitchen admin' },
+            { title: 'Add Kitchen', icon: <MdRestaurant />, color: 'text-emerald-600', bg: 'bg-emerald-50', path: '/add-kitchen', description: 'Register new node' },
+        ],
+        billing_admin: [
+            { title: 'Add Billing', icon: <MdReceipt />, color: 'text-blue-600', bg: 'bg-blue-50', path: '/add-billing', description: 'Generate customer bill' },
+            { title: 'Assign to Kitchen', icon: <MdRestaurant />, color: 'text-emerald-600', bg: 'bg-emerald-50', path: '/billing-management', description: 'Manage order flow' },
+            { title: 'My Inventory', icon: <MdInventory />, color: 'text-purple-600', bg: 'bg-purple-50', path: '/my-inventory', description: 'Check your stock' },
+            { title: 'Security', icon: <MdAssessment />, color: 'text-orange-600', bg: 'bg-orange-50', path: '/change-password', description: 'Update profile' },
+        ],
+        kitchen_admin: [
+            { title: 'View Orders', icon: <MdRestaurant />, color: 'text-emerald-600', bg: 'bg-emerald-50', path: '/kitchen-orders', description: 'Active preparations' },
+            { title: 'Stock Status', icon: <MdInventory />, color: 'text-orange-600', bg: 'bg-orange-50', path: '/my-inventory', description: 'Check ingredients' },
+            { title: 'Stock Logs', icon: <MdAssessment />, color: 'text-blue-600', bg: 'bg-blue-50', path: '/day-stock', description: 'Usage history' },
+            { title: 'Profile', icon: <MdPeople />, color: 'text-purple-600', bg: 'bg-purple-50', path: '/change-password', description: 'Security settings' },
+        ]
+    };
+
+    const quickActions = roleQuickActions[role] || roleQuickActions.super_admin;
 
     // Stats with real-time simulation
     const [stats, setStats] = useState([
-        { title: 'Total Revenue', value: '₹0', icon: <MdAttachMoney />, color: 'text-blue-600', bg: 'bg-blue-50', trend: 'Live', isUp: true, rawValue: 0 },
-        { title: 'Daily Orders', value: '0', icon: <MdShoppingCart />, color: 'text-orange-600', bg: 'bg-orange-50', trend: 'Live', isUp: true, rawValue: 0 },
-        { title: 'Active Kitchens', value: '0', icon: <MdRestaurant />, color: 'text-purple-600', bg: 'bg-purple-50', trend: 'Live', isUp: true, rawValue: 0 },
-        { title: 'Inventory Alert', value: '0', icon: <MdWarning />, color: 'text-red-600', bg: 'bg-red-50', trend: 'Items', isUp: false, rawValue: 0 },
+        { title: role === 'kitchen_admin' ? 'Active Orders' : 'Total Revenue', value: '₹0', icon: <MdAttachMoney />, color: 'text-blue-600', bg: 'bg-blue-50', trend: 'Live', isUp: true, rawValue: 0 },
+        { title: role === 'kitchen_admin' ? 'Orders Ready' : 'Daily Orders', value: '0', icon: <MdShoppingCart />, color: 'text-orange-600', bg: 'bg-orange-50', trend: 'Live', isUp: true, rawValue: 0 },
+        { title: role === 'super_admin' ? 'Active Kitchens' : 'Stock Items', value: '0', icon: <MdRestaurant />, color: 'text-purple-600', bg: 'bg-purple-50', trend: 'Live', isUp: true, rawValue: 0 },
+        { title: 'Alerts', value: '0', icon: <MdWarning />, color: 'text-red-600', bg: 'bg-red-50', trend: 'Items', isUp: false, rawValue: 0 },
     ]);
 
     const [recentOrders, setRecentOrders] = useState([]);
@@ -95,17 +86,26 @@ const Dashboard = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [billRes, prodRes, kitchenRes] = await Promise.all([getBills(), getProducts(), getKitchens()]);
+            const [billRes, prodRes, kitchenRes] = await Promise.all([
+                getBills(),
+                role === 'super_admin' ? getProducts() : getUserInventory(),
+                getKitchens()
+            ]);
 
             if (billRes.data.success) {
                 const bills = billRes.data.bills;
                 const totalRevenue = bills.reduce((sum, b) => sum + b.totalAmount, 0);
-                const dailyOrders = bills.filter(b => new Date(b.createdAt).toDateString() === new Date().toDateString()).length;
+                const dailyOrders = bills.filter(b => new Date(b.createdAt).toDateString() === new Date().toDateString());
 
                 setStats(prev => {
                     const newStats = [...prev];
-                    newStats[0].value = `₹${totalRevenue.toLocaleString()}`;
-                    newStats[1].value = dailyOrders.toString();
+                    if (role === 'kitchen_admin') {
+                        newStats[0].value = bills.filter(b => b.status === 'Processing').length.toString();
+                        newStats[1].value = bills.filter(b => b.status === 'Ready').length.toString();
+                    } else {
+                        newStats[0].value = `₹${totalRevenue.toLocaleString()}`;
+                        newStats[1].value = dailyOrders.length.toString();
+                    }
                     return newStats;
                 });
 
@@ -115,21 +115,24 @@ const Dashboard = () => {
                     items: b.items.length + ' Items',
                     total: `₹${b.totalAmount}`,
                     time: new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                    status: b.status.charAt(0).toUpperCase() + b.status.slice(1)
+                    status: b.status.replace(/_/g, ' ')
                 }));
                 setRecentOrders(mappedOrders);
             }
 
             if (prodRes.data.success) {
-                const lowStock = prodRes.data.products.filter(p => p.quantity <= p.minStock).length;
+                const items = role === 'super_admin' ? prodRes.data.products : prodRes.data.inventory;
+                const lowStock = items.filter(p => (p.quantity || p.product?.quantity) <= (p.minStock || 10)).length;
+
                 setStats(prev => {
                     const newStats = [...prev];
+                    newStats[2].value = items.length.toString();
                     newStats[3].value = lowStock.toString();
                     return newStats;
                 });
             }
 
-            if (kitchenRes.data.success) {
+            if (role === 'super_admin' && kitchenRes.data.success) {
                 setStats(prev => {
                     const newStats = [...prev];
                     newStats[2].value = kitchenRes.data.kitchens.length.toString();
@@ -164,7 +167,7 @@ const Dashboard = () => {
 
     // View all orders
     const viewAllOrders = () => {
-        navigate('/billing-management');
+        navigate(role === 'kitchen_admin' ? '/kitchen-orders' : '/billing-management');
     };
 
     // Revenue Trend Chart (Area Spline)
@@ -348,7 +351,7 @@ const Dashboard = () => {
                         <span className="text-primary font-black tracking-widest text-[9px] uppercase italic bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10">Business Insights</span>
                     </div>
                     <h1 className="text-3xl font-black text-secondary tracking-tight italic leading-none">Overview Dashboard</h1>
-                    <p className="text-zinc-500 text-[11px] font-medium">Welcome back, Super Admin! {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-zinc-500 text-[11px] font-medium">Welcome back, {role.replace('_', ' ')}! ({user.email}) - {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
 
                 <div className="flex items-center gap-3">
