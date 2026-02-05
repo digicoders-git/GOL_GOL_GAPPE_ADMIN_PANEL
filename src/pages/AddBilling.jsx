@@ -35,7 +35,7 @@ import {
     MdChevronRight
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
-import { getProducts, createBill, getKitchens } from '../utils/api';
+import { getProducts, createBill, getKitchens, getUserInventory } from '../utils/api';
 
 const AddBilling = () => {
     // --- State Management ---
@@ -883,7 +883,7 @@ const AddBilling = () => {
                 </AnimatePresence>
             </div>
 
-            <style jsx global>{`
+            <style>{`
                 .no-scrollbar::-webkit-scrollbar { display: none; }
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #E4E4E7; border-radius: 10px; }

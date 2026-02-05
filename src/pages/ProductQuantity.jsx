@@ -51,12 +51,12 @@ const ProductQuantity = () => {
             if (response.data.success) {
                 const mappedProducts = response.data.products.map(p => ({
                     id: p._id,
-                    name: p.name,
-                    category: p.category,
-                    stock: p.quantity,
-                    minStock: p.minStock,
-                    unit: p.unit,
-                    lastUpdated: new Date(p.updatedAt).toLocaleDateString('en-IN')
+                    name: p.name || 'Unknown Product',
+                    category: p.category || 'General',
+                    stock: p.quantity || 0,
+                    minStock: p.minStock || 0,
+                    unit: p.unit || 'unit',
+                    lastUpdated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-IN') : 'N/A'
                 }));
                 setInventory(mappedProducts);
             }
@@ -88,7 +88,7 @@ const ProductQuantity = () => {
 
     const filteredInventory = useMemo(() => {
         let filtered = inventory.filter(item => {
-            const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = (item.name?.toLowerCase() || '').includes(searchQuery.toLowerCase());
             const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
 
             // Status filter

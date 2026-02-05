@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 import {
     MdSwapHoriz,
     MdInventory,
@@ -35,28 +37,40 @@ const ProductAssign = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
+            const isAdmin = role === 'super_admin' || role === 'admin';
+
             const [prodRes, userRes, transRes] = await Promise.all([
-                role === 'super_admin' ? getProducts() : getUserInventory(),
+                isAdmin ? getProducts() : getUserInventory(),
                 getUsers(),
                 getTransferHistory()
             ]);
 
+            console.log('Product Data:', prodRes.data);
+            console.log('User Data:', userRes.data);
+            console.log('Transfer Data:', transRes.data);
+
             if (prodRes.data.success) {
-                setProducts(role === 'super_admin' ? prodRes.data.products : prodRes.data.inventory);
+                const fetchedProducts = isAdmin ? (prodRes.data.products || []) : (prodRes.data.inventory || []);
+                setProducts(fetchedProducts);
+                console.log('Set Products:', fetchedProducts.length);
             }
             if (userRes.data.success) {
-                // Filter recipients: Super Admin can transfer to anyone. Billing Admin can transfer to Kitchen Admin.
+                // Filter recipients: Admins can transfer to anyone except themselves/other super admins. 
                 const filtered = userRes.data.users.filter(u => {
-                    if (role === 'super_admin') return u.role !== 'super_admin';
+                    if (isAdmin) return u._id !== user.id; // Can't transfer to self
                     if (role === 'billing_admin') return u.role === 'kitchen_admin';
                     return false;
                 });
                 setRecipientUsers(filtered);
+                console.log('Set Recipients:', filtered.length);
             }
             if (transRes.data.success) {
-                setTransfers(transRes.data.transfers);
+                const fetchedTransfers = transRes.data.transfers || [];
+                setTransfers(fetchedTransfers);
+                console.log('Set Transfers:', fetchedTransfers.length);
             }
         } catch (error) {
+            console.error('FetchData Error:', error);
             toast.error('Failed to load data');
         } finally {
             setLoading(false);
@@ -155,7 +169,7 @@ const ProductAssign = () => {
                             name: 'Stock Received',
                             data: recipientUsers.map((u, index) => ({
                                 y: transfers
-                                    .filter(t => t.toUser?._id === u._id)
+                                    .filter(t => t.toUser?._id?.toString() === u._id?.toString())
                                     .reduce((acc, curr) => acc + curr.quantity, 0),
                                 color: ['#F59E0B', '#10B981', '#3B82F6', '#6366F1'][index % 4]
                             })),
@@ -295,48 +309,54 @@ const ProductAssign = () => {
                                 </thead>
                                 <tbody className="divide-y divide-zinc-50">
                                     <AnimatePresence>
-                                        {transfers.map((assign) => (
-                                            <motion.tr
-                                                key={assign._id}
-                                                initial={{ opacity: 0, y: -10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, x: -100 }}
-                                                className="group hover:bg-zinc-50/50 transition-colors"
-                                            >
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-9 h-9 bg-zinc-100 rounded-xl flex items-center justify-center text-primary font-black border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-xs">
-                                                            {assign.product?.name?.charAt(0)}
+                                        {transfers.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="5" className="p-10 text-center text-zinc-400 font-bold">No transfers found</td>
+                                            </tr>
+                                        ) : (
+                                            transfers.map((assign) => (
+                                                <motion.tr
+                                                    key={assign._id}
+                                                    initial={{ opacity: 0, y: -10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, x: -100 }}
+                                                    className="group hover:bg-zinc-50/50 transition-colors"
+                                                >
+                                                    <td className="px-5 py-3.5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-9 h-9 bg-zinc-100 rounded-xl flex items-center justify-center text-primary font-black border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-xs">
+                                                                {assign.product?.name?.charAt(0) || '?'}
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{assign.product?.name || 'Deleted Product'}</h4>
+                                                                <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1">
+                                                                    <MdAccessTime size={10} /> {new Date(assign.createdAt).toLocaleTimeString()}
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{assign.product?.name}</h4>
-                                                            <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1">
-                                                                <MdAccessTime size={10} /> {new Date(assign.createdAt).toLocaleTimeString()}
-                                                            </p>
+                                                    </td>
+                                                    <td className="px-5 py-3.5">
+                                                        <div className="flex items-center gap-2 text-zinc-600 text-[10px] font-bold">
+                                                            {assign.fromUser?.email?.split('@')[0] || 'Unknown'} <MdArrowForward className="text-primary" /> {assign.toUser?.email?.split('@')[0] || 'Unknown'}
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-2 text-zinc-600 text-[10px] font-bold">
-                                                        {assign.fromUser?.email.split('@')[0]} <MdArrowForward className="text-primary" /> {assign.toUser?.email.split('@')[0]}
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-center">
-                                                    <span className="inline-block px-3 py-1.5 bg-secondary text-white rounded-lg font-black text-xs shadow-sm">
-                                                        {assign.quantity} {assign.product?.unit}
-                                                    </span>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-center">
-                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                        <MdCheckCircle size={12} />
-                                                        Success
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right font-bold text-zinc-400 text-[10px]">
-                                                    {new Date(assign.createdAt).toLocaleDateString()}
-                                                </td>
-                                            </motion.tr>
-                                        ))}
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-center">
+                                                        <span className="inline-block px-3 py-1.5 bg-secondary text-white rounded-lg font-black text-xs shadow-sm">
+                                                            {assign.quantity} {assign.product?.unit || ''}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-center">
+                                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                                            <MdCheckCircle size={12} />
+                                                            Success
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-3.5 text-right font-bold text-zinc-400 text-[10px]">
+                                                        {new Date(assign.createdAt).toLocaleDateString()}
+                                                    </td>
+                                                </motion.tr>
+                                            ))
+                                        )}
                                     </AnimatePresence>
                                 </tbody>
                             </table>

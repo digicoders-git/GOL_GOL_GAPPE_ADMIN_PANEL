@@ -42,10 +42,10 @@ const AddQuantity = () => {
             if (response.data.success) {
                 const logs = response.data.logs.map(log => ({
                     id: log._id,
-                    name: log.product.name,
-                    category: log.product.category,
+                    name: log.product?.name || 'Unknown',
+                    category: log.product?.category || 'General',
                     quantity: log.quantity,
-                    unit: log.product.unit,
+                    unit: log.product?.unit || 'unit',
                     date: new Date(log.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
                     status: 'completed'
                 }));
@@ -78,8 +78,8 @@ const AddQuantity = () => {
     }, [recentEntries]);
 
     const filteredEntries = recentEntries.filter(entry =>
-        entry.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        entry.category.toLowerCase().includes(searchQuery.toLowerCase())
+        (entry.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+        (entry.category?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
 
     const handleSubmit = async (e) => {
