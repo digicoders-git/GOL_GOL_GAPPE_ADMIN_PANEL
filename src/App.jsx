@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 const Login = lazy(() => import('./pages/Login'));
 const AddQuantity = lazy(() => import('./pages/AddQuantity'));
+const AddProduct = lazy(() => import('./pages/AddProduct'));
 const AddBilling = lazy(() => import('./pages/AddBilling'));
 const ProductQuantity = lazy(() => import('./pages/ProductQuantity'));
 const ProductAssign = lazy(() => import('./pages/ProductAssign'));
@@ -39,19 +40,23 @@ function App() {
           }>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="add-quantity" element={<AddQuantity />} />
-            <Route path="product-quantity" element={<ProductQuantity />} />
-            <Route path="add-billing" element={<AddBilling />} />
+            <Route path="add-product" element={<ProtectedRoute allowedRoles={['super_admin']}><AddProduct /></ProtectedRoute>} />
+            <Route path="add-quantity" element={<ProtectedRoute allowedRoles={['super_admin']}><AddQuantity /></ProtectedRoute>} />
+            <Route path="product-quantity" element={<ProtectedRoute allowedRoles={['super_admin']}><ProductQuantity /></ProtectedRoute>} />
+            <Route path="manage-admins" element={<ProtectedRoute allowedRoles={['super_admin']}><ManageAdmins /></ProtectedRoute>} />
+            <Route path="add-kitchen" element={<ProtectedRoute allowedRoles={['super_admin']}><AddKitchen /></ProtectedRoute>} />
+            <Route path="kitchen-management" element={<ProtectedRoute allowedRoles={['super_admin']}><KitchenManagement /></ProtectedRoute>} />
+
+            <Route path="add-billing" element={<ProtectedRoute allowedRoles={['super_admin', 'billing_admin']}><AddBilling /></ProtectedRoute>} />
+            <Route path="product-assign" element={<ProtectedRoute allowedRoles={['super_admin', 'billing_admin']}><ProductAssign /></ProtectedRoute>} />
+
+            <Route path="my-inventory" element={<ProtectedRoute allowedRoles={['billing_admin', 'kitchen_admin']}><MyInventory /></ProtectedRoute>} />
+            <Route path="kitchen-orders" element={<ProtectedRoute allowedRoles={['kitchen_admin']}><KitchenOrders /></ProtectedRoute>} />
+
             <Route path="billing-management" element={<BillingManagement />} />
-            <Route path="add-kitchen" element={<AddKitchen />} />
-            <Route path="kitchen-management" element={<KitchenManagement />} />
-            <Route path="product-assign" element={<ProductAssign />} />
             <Route path="day-stock" element={<DayWiseStock />} />
             <Route path="month-stock" element={<MonthWiseStock />} />
             <Route path="change-password" element={<ChangePassword />} />
-            <Route path="manage-admins" element={<ManageAdmins />} />
-            <Route path="my-inventory" element={<MyInventory />} />
-            <Route path="kitchen-orders" element={<KitchenOrders />} />
             <Route path="reports" element={<Reports />} />
           </Route>
 

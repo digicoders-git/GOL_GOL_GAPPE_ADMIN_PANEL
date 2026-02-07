@@ -11,39 +11,102 @@ const Reports = () => {
     const role = user.role || 'super_admin';
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState({ bills: [], inventory: [] });
+    const [performanceData, setPerformanceData] = useState({ categories: [], series: [] });
+    const [stockDistribution, setStockDistribution] = useState({ series: [] });
 
     useEffect(() => {
         const fetchAll = async () => {
             try {
+                setLoading(true);
                 const [billRes, invRes] = await Promise.all([
                     getBills(),
-                    role === 'super_admin' ? getProducts() : getUserInventory()
+                    (role === 'super_admin' || role === 'admin') ? getProducts() : getUserInventory()
                 ]);
-                setData({
-                    bills: billRes.data.bills,
-                    inventory: role === 'super_admin' ? invRes.data.products : invRes.data.inventory
+
+                const bills = billRes.data.bills || [];
+                const inventory = (role === 'super_admin' || role === 'admin')
+                    ? (invRes.data.products || [])
+                    : (invRes.data.inventory || []);
+
+                setData({ bills, inventory });
+
+                // --- Performance Summary (Last 6 Months) ---
+                const last6Months = Array.from({ length: 6 }, (_, i) => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - (5 - i));
+                    return d;
                 });
+
+                const monthlyData = last6Months.map(monthDate => {
+                    const targetMonth = monthDate.getMonth();
+                    const targetYear = monthDate.getFullYear();
+
+                    return bills
+                        .filter(b => {
+                            const d = new Date(b.createdAt);
+                            return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+                        })
+                        .reduce((sum, b) => sum + (role === 'kitchen_admin' ? 1 : b.totalAmount), 0);
+                });
+
+                const monthLabels = last6Months.map(d => d.toLocaleString('default', { month: 'short' }));
+
+                setPerformanceData({
+                    categories: monthLabels,
+                    series: [{
+                        name: role === 'kitchen_admin' ? 'Orders Processed' : 'Monthly Revenue',
+                        data: monthlyData,
+                        color: '#F97316'
+                    }]
+                });
+
+                // --- Stock Distribution (Top 10 items) ---
+                const stockData = [...inventory]
+                    .sort((a, b) => (b.quantity || b.product?.quantity || 0) - (a.quantity || a.product?.quantity || 0))
+                    .slice(0, 10)
+                    .map(item => ({
+                        name: item.name || item.product?.name || 'Unknown Item',
+                        y: item.quantity || item.product?.quantity || 0
+                    }));
+
+                setStockDistribution({
+                    series: [{
+                        name: 'Quantity',
+                        colorByPoint: true,
+                        data: stockData
+                    }]
+                });
+
             } catch (error) {
+                console.error('Reports fetch error:', error);
                 toast.error('Failed to load report data');
             } finally {
                 setLoading(false);
             }
         };
         fetchAll();
-    }, []);
+    }, [role]);
 
     // Chart Options Generation
     const getPerformanceOptions = () => ({
         chart: { type: 'column', backgroundColor: 'transparent' },
         title: { text: '' },
-        xAxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] },
-        yAxis: { title: { text: role === 'kitchen_admin' ? 'Orders Processed' : 'Revenue (₹)' } },
-        series: [{
-            name: role === 'kitchen_admin' ? 'Orders' : 'Revenue',
-            data: [450, 520, 610, 580, 720, 850],
-            color: '#F97316'
-        }],
-        credits: { enabled: false }
+        xAxis: {
+            categories: performanceData.categories,
+            labels: { style: { fontWeight: 'bold', color: '#64748b' } }
+        },
+        yAxis: {
+            title: { text: role === 'kitchen_admin' ? 'Orders' : 'Revenue (₹)' },
+            labels: { style: { fontWeight: 'bold', color: '#64748b' } }
+        },
+        series: performanceData.series,
+        credits: { enabled: false },
+        plotOptions: {
+            column: {
+                borderRadius: 8,
+                dataLabels: { enabled: true }
+            }
+        }
     });
 
     const getStockOptions = () => ({
@@ -52,16 +115,14 @@ const Reports = () => {
         plotOptions: {
             pie: {
                 innerSize: '50%',
-                dataLabels: { enabled: true, format: '{point.name}: {point.y}' }
+                dataLabels: {
+                    enabled: true,
+                    format: '<b>{point.name}</b>: {point.y}',
+                    style: { fontSize: '10px' }
+                }
             }
         },
-        series: [{
-            name: 'Stock',
-            data: data.inventory.slice(0, 5).map(item => ({
-                name: (item.product?.name || item.name),
-                y: item.quantity
-            }))
-        }],
+        series: stockDistribution.series,
         credits: { enabled: false }
     });
 

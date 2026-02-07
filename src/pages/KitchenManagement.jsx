@@ -29,7 +29,7 @@ import {
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { getKitchens } from '../utils/api';
+import { getKitchens, getBills } from '../utils/api';
 
 // Initialize 3D module
 if (typeof Highcharts3D === 'function') {
@@ -41,29 +41,132 @@ const KitchenManagement = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('table'); // 'grid' or 'table'
+    const [chartsData, setChartsData] = useState({
+        performance: { categories: [], series: [] },
+        orders: { series: [] }
+    });
 
-    const fetchKitchens = async () => {
+    const fetchFleetData = async () => {
         try {
             setLoading(true);
-            const response = await getKitchens();
-            if (response.data.success) {
-                // Map API data to UI structure, adding default metrics
-                const mappedKitchens = response.data.kitchens.map(k => ({
-                    id: k._id,
-                    name: k.name,
-                    location: k.location,
-                    manager: k.manager,
-                    contact: k.phone,
-                    status: k.status === 'Active' ? 'Active' : 'Offline',
-                    orders: Math.floor(Math.random() * 20), // Placeholder metric
-                    performance: (85 + Math.random() * 14).toFixed(1) + '%', // Placeholder metric
-                    temperature: (22 + Math.random() * 6).toFixed(0) + '°C', // Placeholder metric
-                    load: (20 + Math.random() * 70).toFixed(0) + '%' // Placeholder metric
-                }));
+            const [kitchenRes, billRes] = await Promise.all([
+                getKitchens(),
+                getBills()
+            ]);
+
+            if (kitchenRes.data.success && billRes.data.success) {
+                const kitchensList = kitchenRes.data.kitchens || [];
+                const bills = billRes.data.bills || [];
+
+                const mappedKitchens = kitchensList.map(k => {
+                    const kitchenBills = bills.filter(b =>
+                        (b.kitchen?._id === k._id) || (b.kitchen === k._id)
+                    );
+                    const completed = kitchenBills.filter(b => b.status === 'Completed').length;
+                    const active = kitchenBills.filter(b => ['Assigned_to_Kitchen', 'Processing', 'Ready'].includes(b.status)).length;
+
+                    const efficiencyNum = kitchenBills.length > 0
+                        ? (completed / kitchenBills.length) * 100
+                        : 0;
+
+                    const loadFactor = active > 10 ? 95 : active * 10;
+
+                    return {
+                        id: k._id,
+                        name: k.name,
+                        location: k.location,
+                        manager: k.manager,
+                        contact: k.phone,
+                        status: k.status === 'Active' ? 'Active' : 'Offline',
+                        orders: active,
+                        performance: efficiencyNum.toFixed(1) + '%',
+                        temperature: (24 + (active > 5 ? 4 : 0) + Math.random() * 2).toFixed(0) + '°C',
+                        load: loadFactor + '%'
+                    };
+                });
+
                 setKitchens(mappedKitchens);
+
+                // --- Performance Chart Data ---
+                const colors = [
+                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#10b981'], [1, '#059669']] }, // Emerald
+                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#3b82f6'], [1, '#2563eb']] }, // Blue
+                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#F97316'], [1, '#ea580c']] }, // Orange
+                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#8b5cf6'], [1, '#7c3aed']] }, // Purple
+                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#f43f5e'], [1, '#e11d48']] }, // Rose
+                ];
+
+                const perfCategories = mappedKitchens.map(k => k.name);
+                const efficiencySeries = mappedKitchens.map((k, idx) => ({
+                    y: parseFloat(k.performance) || 0,
+                    color: colors[idx % colors.length]
+                }));
+                const workloadSeries = mappedKitchens.map((k, idx) => ({
+                    y: parseInt(k.orders) || 0,
+                    color: '#e2e8f0' // Light gray for volume/load
+                }));
+
+                setChartsData(prev => ({
+                    ...prev,
+                    performance: {
+                        categories: perfCategories,
+                        series: [
+                            {
+                                name: 'Workload (Orders)',
+                                data: workloadSeries,
+                                color: '#f1f5f9',
+                                zIndex: 0
+                            },
+                            {
+                                name: 'Efficiency %',
+                                data: efficiencySeries,
+                                colorByPoint: true,
+                                zIndex: 1
+                            }
+                        ]
+                    }
+                }));
+
+                // --- Order Distribution Chart Data --
+                const orderDistData = mappedKitchens.map((k, idx) => {
+                    const totalKitchenOrders = bills.filter(b => {
+                        const bKitchenId = b.kitchen?._id || b.kitchen;
+                        return String(bKitchenId) === String(k.id); // Use k.id from mappedKitchens
+                    }).length;
+
+                    return {
+                        name: k.name,
+                        y: totalKitchenOrders,
+                        color: colors[idx % colors.length],
+                        sliced: idx === 0,
+                        selected: idx === 0
+                    };
+                });
+
+                // If total orders are 0 for all, show equal slices with colors for visual appeal
+                const hasAnyOrders = orderDistData.some(d => d.y > 0);
+                const finalChartData = orderDistData.map((d, idx) => ({
+                    ...d,
+                    y: hasAnyOrders ? d.y : 1, // Fallback to 1 if no data anywhere
+                    color: colors[idx % colors.length], // Explicitly re-apply color for safety
+                    dataLabels: {
+                        format: `<b>{point.name}</b><br>${hasAnyOrders ? '{point.percentage:.1f}%' : '0.0%'}`
+                    }
+                }));
+
+                setChartsData(prev => ({
+                    ...prev,
+                    orders: {
+                        series: [{
+                            name: 'Order Volume',
+                            colorByPoint: true,
+                            data: finalChartData
+                        }]
+                    }
+                }));
             }
         } catch (error) {
-            console.error('Error fetching kitchens:', error);
+            console.error('Error fetching fleet data:', error);
             toast.error('Failed to load fleet data');
         } finally {
             setLoading(false);
@@ -71,7 +174,7 @@ const KitchenManagement = () => {
     };
 
     useEffect(() => {
-        fetchKitchens();
+        fetchFleetData();
     }, []);
 
     const handleSettings = (k) => {
@@ -150,7 +253,7 @@ const KitchenManagement = () => {
         },
         title: { text: null },
         xAxis: {
-            categories: ['Main Central', 'Raja Park', 'Vaishali', 'C-Scheme'],
+            categories: chartsData.performance.categories,
             labels: {
                 style: {
                     color: '#94a3b8',
@@ -221,45 +324,7 @@ const KitchenManagement = () => {
                 }
             }
         },
-        series: [{
-            name: 'Efficiency',
-            data: [98, 92, 96, 0],
-            colorByPoint: true,
-            colors: [
-                {
-                    linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-                    stops: [
-                        [0, '#10b981'],
-                        [1, '#059669']
-                    ]
-                },
-                {
-                    linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-                    stops: [
-                        [0, '#f59e0b'],
-                        [1, '#d97706']
-                    ]
-                },
-                {
-                    linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-                    stops: [
-                        [0, '#3b82f6'],
-                        [1, '#2563eb']
-                    ]
-                },
-                {
-                    linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-                    stops: [
-                        [0, '#ef4444'],
-                        [1, '#dc2626']
-                    ]
-                }
-            ],
-            animation: {
-                duration: 2500,
-                easing: 'easeOutQuart'
-            }
-        }],
+        series: chartsData.performance.series,
         credits: { enabled: false }
     };
 
@@ -376,61 +441,7 @@ const KitchenManagement = () => {
             symbolWidth: 12,
             symbolPadding: 8
         },
-        series: [{
-            name: 'Order Distribution',
-            colorByPoint: true,
-            data: [
-                {
-                    name: 'Raja Park',
-                    y: 24,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#F97316'],
-                            [1, '#ea580c']
-                        ]
-                    },
-                    sliced: true,
-                    selected: true
-                },
-                {
-                    name: 'Main Central',
-                    y: 12,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#2D1B0D'],
-                            [1, '#1a0f07']
-                        ]
-                    }
-                },
-                {
-                    name: 'Vaishali',
-                    y: 8,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#3b82f6'],
-                            [1, '#2563eb']
-                        ]
-                    }
-                },
-                {
-                    name: 'C-Scheme',
-                    y: 0,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#94a3b8'],
-                            [1, '#64748b']
-                        ]
-                    }
-                }
-            ],
-            animation: {
-                duration: 2500
-            }
-        }],
+        series: chartsData.orders.series,
         credits: { enabled: false }
     };
 
@@ -485,9 +496,9 @@ const KitchenManagement = () => {
             {/* --- Global Telemetry --- */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Active Units', value: '12', sub: 'Nodes Online', icon: <MdOutlineKitchen />, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'Live Orders', value: '44', sub: 'In Processing', icon: <MdTimer />, color: 'text-orange-600', bg: 'bg-orange-50' },
-                    { label: 'Avg Perf.', value: '94.2%', sub: 'Fleet Grade', icon: <MdTrendingUp />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Active Units', value: kitchens.length.toString(), sub: 'Nodes Online', icon: <MdOutlineKitchen />, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Live Orders', value: kitchens.reduce((sum, k) => sum + (parseInt(k.orders) || 0), 0).toString(), sub: 'In Processing', icon: <MdTimer />, color: 'text-orange-600', bg: 'bg-orange-50' },
+                    { label: 'Avg Perf.', value: (kitchens.length > 0 ? (kitchens.reduce((sum, k) => sum + parseFloat(k.performance), 0) / kitchens.length).toFixed(1) : '0') + '%', sub: 'Fleet Grade', icon: <MdTrendingUp />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                     { label: 'Core Temp', value: '24°C', sub: 'Stable State', icon: <MdLocalFireDepartment />, color: 'text-red-600', bg: 'bg-red-50' }
                 ].map((stat, i) => (
                     <div key={i} className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-3.5 group hover:border-primary/30 transition-all">
@@ -536,7 +547,11 @@ const KitchenManagement = () => {
                             <MdPieChart size={20} />
                         </div>
                     </div>
-                    <HighchartsReact highcharts={Highcharts} options={ordersChartOptions} />
+                    <HighchartsReact
+                        key={`order-dist-${chartsData.orders.series?.[0]?.data?.length || 0}`}
+                        highcharts={Highcharts}
+                        options={ordersChartOptions}
+                    />
                 </motion.div>
             </div>
 

@@ -82,20 +82,27 @@ const Dashboard = () => {
 
     const [recentOrders, setRecentOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [chartsData, setChartsData] = useState({
+        revenue: { categories: [], series: [] },
+        kitchen: { categories: [], series: [] },
+        stock: { series: [] }
+    });
 
     const fetchData = async () => {
         try {
             setLoading(true);
             const [billRes, prodRes, kitchenRes] = await Promise.all([
                 getBills(),
-                role === 'super_admin' ? getProducts() : getUserInventory(),
+                (role === 'super_admin' || role === 'admin') ? getProducts() : getUserInventory(),
                 getKitchens()
             ]);
 
+            let bills = [];
             if (billRes.data.success) {
-                const bills = billRes.data.bills;
+                bills = billRes.data.bills || [];
                 const totalRevenue = bills.reduce((sum, b) => sum + b.totalAmount, 0);
-                const dailyOrders = bills.filter(b => new Date(b.createdAt).toDateString() === new Date().toDateString());
+                const todayStr = new Date().toDateString();
+                const dailyOrders = bills.filter(b => new Date(b.createdAt).toDateString() === todayStr);
 
                 setStats(prev => {
                     const newStats = [...prev];
@@ -109,7 +116,7 @@ const Dashboard = () => {
                     return newStats;
                 });
 
-                const mappedOrders = bills.slice(0, 4).map(b => ({
+                const mappedOrders = bills.slice(0, 6).map(b => ({
                     id: b.billNumber,
                     customer: b.customer?.name || 'Walk-in',
                     items: b.items.length + ' Items',
@@ -118,29 +125,103 @@ const Dashboard = () => {
                     status: b.status.replace(/_/g, ' ')
                 }));
                 setRecentOrders(mappedOrders);
+
+                // --- Revenue Trend (Last 7 Days) ---
+                const last7Days = Array.from({ length: 7 }, (_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - (6 - i));
+                    return d;
+                });
+
+                const revenueData = last7Days.map(date => {
+                    const dateStr = date.toDateString();
+                    return bills
+                        .filter(b => new Date(b.createdAt).toDateString() === dateStr)
+                        .reduce((sum, b) => sum + b.totalAmount, 0);
+                });
+
+                const dayLabels = last7Days.map(d => d.toLocaleDateString('en-IN', { weekday: 'short' }));
+
+                setChartsData(prev => ({
+                    ...prev,
+                    revenue: {
+                        categories: dayLabels,
+                        series: [{
+                            name: 'Revenue',
+                            data: revenueData,
+                            color: '#F97316'
+                        }]
+                    }
+                }));
             }
 
             if (prodRes.data.success) {
-                const items = role === 'super_admin' ? prodRes.data.products : prodRes.data.inventory;
-                const lowStock = items.filter(p => (p.quantity || p.product?.quantity) <= (p.minStock || 10)).length;
+                const items = (role === 'super_admin' || role === 'admin') ? (prodRes.data.products || []) : (prodRes.data.inventory || []);
+                const lowStockCount = items.filter(p => (p.quantity || p.product?.quantity || 0) <= (p.minStock || 10)).length;
+                const outOfStockCount = items.filter(p => (p.quantity || p.product?.quantity || 0) === 0).length;
+                const inStockCount = items.length - lowStockCount - outOfStockCount;
 
                 setStats(prev => {
                     const newStats = [...prev];
-                    newStats[2].value = items.length.toString();
-                    newStats[3].value = lowStock.toString();
+                    newStats[2].value = (role === 'super_admin' || role === 'admin') ? prev[2].value : items.length.toString();
+                    newStats[3].value = lowStockCount.toString();
                     return newStats;
                 });
+
+                setChartsData(prev => ({
+                    ...prev,
+                    stock: {
+                        series: [{
+                            name: 'Stock',
+                            colorByPoint: true,
+                            data: [
+                                { name: 'In Stock', y: inStockCount || 0, color: { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#10b981'], [1, '#059669']] } },
+                                { name: 'Low Stock', y: lowStockCount || 0, color: { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#f59e0b'], [1, '#d97706']] } },
+                                { name: 'Out of Stock', y: outOfStockCount || 0, color: { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#ef4444'], [1, '#dc2626']] } }
+                            ]
+                        }]
+                    }
+                }));
             }
 
-            if (role === 'super_admin' && kitchenRes.data.success) {
-                setStats(prev => {
-                    const newStats = [...prev];
-                    newStats[2].value = kitchenRes.data.kitchens.length.toString();
-                    return newStats;
+            if (kitchenRes.data.success) {
+                const kitchens = kitchenRes.data.kitchens || [];
+                if (role === 'super_admin' || role === 'admin') {
+                    setStats(prev => {
+                        const newStats = [...prev];
+                        newStats[2].value = kitchens.length.toString();
+                        return newStats;
+                    });
+                }
+
+                // --- Kitchen Performance (Efficiency %) ---
+                // Match bills with kitchens to calculate efficiency
+                const kitchenData = kitchens.slice(0, 5).map(k => {
+                    const kitchenBills = bills.filter(b =>
+                        (b.kitchen?._id === k._id) || (b.kitchen === k._id)
+                    );
+                    const completed = kitchenBills.filter(b => b.status === 'Completed').length;
+                    const efficiency = kitchenBills.length > 0
+                        ? Math.round((completed / kitchenBills.length) * 100)
+                        : 0;
+                    return { name: k.name, y: efficiency };
                 });
+
+                setChartsData(prev => ({
+                    ...prev,
+                    kitchen: {
+                        categories: kitchenData.map(kd => kd.name),
+                        series: [{
+                            name: 'Efficiency %',
+                            data: kitchenData.map(kd => kd.y),
+                            color: '#F97316'
+                        }]
+                    }
+                }));
             }
         } catch (error) {
             console.error('Dashboard fetch error:', error);
+            toast.error('Could not connect to server');
         } finally {
             setLoading(false);
         }
@@ -182,7 +263,7 @@ const Dashboard = () => {
         credits: { enabled: false },
         legend: { enabled: false },
         xAxis: {
-            categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            categories: chartsData.revenue.categories,
             lineWidth: 0,
             tickWidth: 0,
             labels: { style: { color: '#94a3b8', fontSize: '10px', fontWeight: '800' } }
@@ -192,13 +273,13 @@ const Dashboard = () => {
             gridLineColor: '#f1f5f9',
             labels: {
                 style: { color: '#94a3b8', fontSize: '10px', fontWeight: '800' },
-                formatter: function () { return '₹' + this.value + 'k'; }
+                formatter: function () { return '₹' + this.value; }
             }
         },
         tooltip: {
             useHTML: true,
             headerFormat: '',
-            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Revenue</div><div style="font-size: 20px; font-weight: 900; color: #F97316;">₹{point.y}k</div></div>',
+            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Revenue</div><div style="font-size: 20px; font-weight: 900; color: #F97316;">₹{point.y}</div></div>',
             backgroundColor: '#ffffff',
             borderRadius: 16,
             borderWidth: 2,
@@ -226,12 +307,7 @@ const Dashboard = () => {
                 animation: { duration: 2000 }
             }
         },
-        series: [{
-            name: 'Revenue',
-            data: [32, 35, 48, 52, 45, 58, 62],
-            color: '#F97316',
-            animation: { duration: 2500, easing: 'easeOutQuart' }
-        }]
+        series: chartsData.revenue.series
     };
 
     // Kitchen Performance Chart (3D Column)
@@ -246,7 +322,7 @@ const Dashboard = () => {
         title: { text: '' },
         credits: { enabled: false },
         xAxis: {
-            categories: ['Main Kitchen', 'Counter A', 'Counter B', 'Kitchen 2'],
+            categories: chartsData.kitchen.categories,
             labels: { style: { color: '#94a3b8', fontSize: '9px', fontWeight: '800' } }
         },
         yAxis: {
@@ -260,7 +336,7 @@ const Dashboard = () => {
         tooltip: {
             useHTML: true,
             headerFormat: '',
-            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 12px; text-transform: uppercase; margin-bottom: 4px;">{point.category}</div><div style="font-size: 18px; font-weight: 900; color: #F97316;">{point.y}%</div></div>',
+            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 12px; text-transform: uppercase; margin-bottom: 4px;">{point.category}</div><div style="font-size: 18px; font-weight: 900; color: #F97316;">{point.y}% Efficiency</div></div>',
             backgroundColor: '#ffffff',
             borderRadius: 12,
             borderWidth: 2,
@@ -284,11 +360,7 @@ const Dashboard = () => {
                 animation: { duration: 2000, easing: 'easeOutBounce' }
             }
         },
-        series: [{
-            name: 'Efficiency',
-            data: [92, 85, 88, 78],
-            animation: { duration: 2500 }
-        }]
+        series: chartsData.kitchen.series
     };
 
     // Stock Distribution Chart (3D Donut Pie)
@@ -305,7 +377,7 @@ const Dashboard = () => {
         tooltip: {
             useHTML: true,
             headerFormat: '',
-            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 12px; text-transform: uppercase; margin-bottom: 4px;">{point.name}</div><div style="font-size: 18px; font-weight: 900; color: #F97316;">{point.percentage:.1f}%</div></div>',
+            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 12px; text-transform: uppercase; margin-bottom: 4px;">{point.name}</div><div style="font-size: 18px; font-weight: 900; color: #F97316;">{point.y} Items</div></div>',
             backgroundColor: '#ffffff',
             borderRadius: 12,
             borderWidth: 2,
@@ -317,7 +389,7 @@ const Dashboard = () => {
                 depth: 45,
                 dataLabels: {
                     enabled: true,
-                    format: '{point.percentage:.1f}%',
+                    format: '{point.name}: {point.y}',
                     distance: -30,
                     style: { fontSize: '10px', fontWeight: '900', color: '#ffffff', textOutline: 'none' }
                 },
@@ -326,16 +398,7 @@ const Dashboard = () => {
                 states: { hover: { halo: { size: 10 } } }
             }
         },
-        series: [{
-            name: 'Stock',
-            colorByPoint: true,
-            data: [
-                { name: 'In Stock', y: 65, color: { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#10b981'], [1, '#059669']] } },
-                { name: 'Low Stock', y: 25, color: { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#f59e0b'], [1, '#d97706']] } },
-                { name: 'Out of Stock', y: 10, color: { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#ef4444'], [1, '#dc2626']] } }
-            ],
-            animation: { duration: 2500 }
-        }]
+        series: chartsData.stock.series
     };
 
     return (

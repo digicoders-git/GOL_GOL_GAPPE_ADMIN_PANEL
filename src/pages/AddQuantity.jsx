@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     MdAdd,
@@ -15,15 +15,19 @@ import {
     MdSearch,
     MdClose,
     MdFileDownload,
-    MdCategory
+    MdCategory,
+    MdKeyboardArrowDown
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { getStockLogs, addQuantity } from '../utils/api';
+import { getStockLogs, addQuantity, getProducts } from '../utils/api';
 
 const AddQuantity = () => {
     const [recentEntries, setRecentEntries] = useState([]);
+    const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showProductDropdown, setShowProductDropdown] = useState(false);
+    const dropdownRef = useRef(null);
 
     const [formData, setFormData] = useState({
         productName: '',
@@ -34,13 +38,18 @@ const AddQuantity = () => {
     });
 
     const [searchQuery, setSearchQuery] = useState('');
+    const [productSearch, setProductSearch] = useState('');
 
-    const fetchLogs = async () => {
+    const fetchData = async () => {
         try {
             setLoading(true);
-            const response = await getStockLogs();
-            if (response.data.success) {
-                const logs = response.data.logs.map(log => ({
+            const [logsRes, productsRes] = await Promise.all([
+                getStockLogs(),
+                getProducts()
+            ]);
+
+            if (logsRes.data.success) {
+                const logs = logsRes.data.logs.map(log => ({
                     id: log._id,
                     name: log.product?.name || 'Unknown',
                     category: log.product?.category || 'General',
@@ -51,17 +60,43 @@ const AddQuantity = () => {
                 }));
                 setRecentEntries(logs);
             }
+
+            if (productsRes.data.success) {
+                setProducts(productsRes.data.products);
+            }
         } catch (error) {
-            console.error('Error fetching logs:', error);
-            toast.error('Failed to fetch stock logs');
+            console.error('Error fetching data:', error);
+            toast.error('Failed to fetch required data');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchLogs();
+        fetchData();
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setShowProductDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    const filteredProducts = products.filter(p =>
+        (p?.name?.toLowerCase() || '').includes(productSearch.toLowerCase())
+    );
+
+    const handleProductSelect = (product) => {
+        setFormData({
+            ...formData,
+            productName: product.name,
+            category: product.category,
+            unit: product.unit
+        });
+        setProductSearch(product.name);
+        setShowProductDropdown(false);
+    };
 
     // Dynamic Stats
     const stats = useMemo(() => {
@@ -95,7 +130,8 @@ const AddQuantity = () => {
             if (response.data.success) {
                 toast.success('Stock updated successfully!', { id: loadingToast });
                 setFormData({ productName: '', category: 'ingredients', quantity: '', unit: 'kg', notes: '' });
-                fetchLogs(); // Refresh the list
+                setProductSearch('');
+                fetchData(); // Refresh the list
             }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to update stock', { id: loadingToast });
@@ -192,35 +228,73 @@ const AddQuantity = () => {
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Product Name</label>
+                            <div className="space-y-2 relative" ref={dropdownRef}>
+                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Select Product</label>
                                 <div className="relative">
                                     <MdInventory className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
                                     <input
                                         type="text"
                                         required
-                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
-                                        value={formData.productName}
-                                        onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                                        placeholder="e.g., Premium Basmati Rice"
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-10 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
+                                        value={productSearch}
+                                        onChange={(e) => {
+                                            setProductSearch(e.target.value);
+                                            setShowProductDropdown(true);
+                                            setFormData({ ...formData, productName: e.target.value });
+                                        }}
+                                        onFocus={() => setShowProductDropdown(true)}
+                                        placeholder="Search or type product name"
                                     />
+                                    <MdKeyboardArrowDown className={`absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 transition-transform ${showProductDropdown ? 'rotate-180' : ''}`} />
                                 </div>
+
+                                <AnimatePresence>
+                                    {showProductDropdown && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            className="absolute z-50 w-full mt-2 bg-white border border-zinc-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto"
+                                        >
+                                            {filteredProducts.length > 0 ? (
+                                                filteredProducts.map((product) => (
+                                                    <div
+                                                        key={product._id}
+                                                        className="p-3 hover:bg-zinc-50 cursor-pointer flex items-center justify-between group border-b border-zinc-50 last:border-0"
+                                                        onClick={() => handleProductSelect(product)}
+                                                    >
+                                                        <div>
+                                                            <p className="font-black text-xs uppercase text-secondary">{product.name}</p>
+                                                            <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">{product.category}</p>
+                                                        </div>
+                                                        <span className="bg-primary/10 text-primary text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic">
+                                                            {product.unit}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="p-4 text-center">
+                                                    <p className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No matching products</p>
+                                                    <p className="text-[8px] text-zinc-300 mt-1 uppercase italic">Adding as a new product will auto-create it</p>
+                                                </div>
+                                            )}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
 
                             <div className="space-y-2">
                                 <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Category</label>
                                 <div className="relative">
                                     <MdCategory className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
-                                    <select
-                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm appearance-none"
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm"
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    >
-                                        <option value="ingredients">Ingredients</option>
-                                        <option value="snacks">Snacks</option>
-                                        <option value="packaging">Packaging</option>
-                                        <option value="others">Others</option>
-                                    </select>
+                                        placeholder="e.g., Ingredients, Packaging"
+                                    />
                                 </div>
                             </div>
 
@@ -333,7 +407,7 @@ const AddQuantity = () => {
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3 flex-1">
                                                 <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center text-primary font-black border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-sm">
-                                                    {entry.name.charAt(0)}
+                                                    {entry.name?.charAt(0) || '?'}
                                                 </div>
                                                 <div className="flex-1">
                                                     <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{entry.name}</h4>

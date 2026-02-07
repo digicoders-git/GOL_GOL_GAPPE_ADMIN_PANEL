@@ -38,6 +38,7 @@ export const deleteUser = (id) => api.delete(`/auth/users/${id}`);
 
 // Product/Inventory APIs
 export const getProducts = () => api.get('/products');
+export const createProduct = (data) => api.post('/products', data);
 export const getUserInventory = () => api.get('/products/user-inventory');
 export const addQuantity = (data) => api.post('/products/add-quantity', data);
 export const transferStock = (data) => api.post('/products/transfer', data);

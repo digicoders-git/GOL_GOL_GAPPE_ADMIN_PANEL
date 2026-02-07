@@ -18,14 +18,17 @@ import logo from '../../assets/logo.jpeg';
 const Sidebar = ({ isOpen, toggleSidebar }) => {
     const userString = localStorage.getItem('user');
     const user = userString ? JSON.parse(userString) : { role: 'super_admin' };
-    const role = user.role;
+    const rawRole = user.role;
+    // Map 'admin' to 'super_admin' for menu consistency
+    const role = rawRole === 'admin' ? 'super_admin' : rawRole;
 
     const allMenuItems = {
         super_admin: [
             { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
             { name: 'Manage Admins', icon: <Settings size={20} />, path: '/manage-admins' },
+            { name: 'Add Product', icon: <PackagePlus size={20} />, path: '/add-product' },
             { name: 'Add Quantity', icon: <PlusCircle size={20} />, path: '/add-quantity' },
-            { name: 'Global Stock', icon: <PackagePlus size={20} />, path: '/product-quantity' },
+            { name: 'Global Stock', icon: <Boxes size={20} />, path: '/product-quantity' },
             { name: 'Transfer Stock', icon: <ArrowLeftRight size={20} />, path: '/product-assign' },
             { name: 'Kitchen Fleet', icon: <ChefHat size={20} />, path: '/kitchen-management' },
             { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
