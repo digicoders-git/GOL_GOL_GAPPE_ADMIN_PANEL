@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+// Use production backend URL if available, otherwise localhost
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+                     (import.meta.env.PROD ? 'https://your-backend-url.com/api' : 'http://localhost:5000/api');
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+    baseURL: API_BASE_URL,
 });
 // Add request interceptor to include auth token
 api.interceptors.request.use(
