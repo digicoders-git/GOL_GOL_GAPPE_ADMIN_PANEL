@@ -69,7 +69,7 @@ const Login = () => {
                                     type="email"
                                     required
                                     placeholder="Enter email"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl  py-3 pl-11 pr-4 text-sm  outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all text-white"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all !text-white"
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 />
@@ -84,7 +84,7 @@ const Login = () => {
                                     type={showPassword ? 'text' : 'password'}
                                     required
                                     placeholder="Enter password"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-11 text-sm text-white outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-11 text-sm !text-white outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all"
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                 />
@@ -107,9 +107,9 @@ const Login = () => {
                         </button>
                     </form>
 
-                    <p className="mt-6 text-center text-white/40 text-xs">
+                    {/* <p className="mt-6 text-center text-white/40 text-xs">
                         © 2024 Gol Gol Gappe. All rights reserved.
-                    </p>
+                    </p> */}
                 </div>
             </motion.div>
         </div>

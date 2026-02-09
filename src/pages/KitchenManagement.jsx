@@ -25,11 +25,15 @@ import {
     MdViewList,
     MdMoreVert,
     MdShowChart,
-    MdPieChart
+    MdPieChart,
+    MdEdit,
+    MdDelete,
+    MdInventory
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { getKitchens, getBills } from '../utils/api';
+import { getKitchens, getBills, deleteKitchen, updateKitchen, getKitchenInventory } from '../utils/api';
+import Tooltip from '../components/common/Tooltip';
 
 // Initialize 3D module
 if (typeof Highcharts3D === 'function') {
@@ -45,6 +49,76 @@ const KitchenManagement = () => {
         performance: { categories: [], series: [] },
         orders: { series: [] }
     });
+    const [selectedKitchenInventory, setSelectedKitchenInventory] = useState(null); // Added this state
+    const [inventoryLoading, setInventoryLoading] = useState(false);
+
+    const handleViewStock = async (k) => {
+        try {
+            setInventoryLoading(true);
+            const response = await getKitchenInventory(k.id);
+            if (response.data.success) {
+                const inv = response.data.inventory || [];
+
+                Swal.fire({
+                    title: `<span class="text-2xl font-black text-secondary uppercase tracking-tight italic">Inventory Telemetry</span>`,
+                    html: `
+                        <div class="text-left space-y-4 max-h-[60vh] overflow-y-auto px-2">
+                            <div class="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex justify-between items-center sticky top-0 z-10">
+                                <div>
+                                    <p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Source Node</p>
+                                    <h4 class="text-sm font-black text-secondary uppercase italic">${k.name}</h4>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Active Items</p>
+                                    <h4 class="text-sm font-black text-primary">${inv.length} SKU</h4>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 gap-2">
+                                ${inv.length > 0 ? inv.map(item => `
+                                    <div class="flex items-center gap-4 bg-white p-3 rounded-xl border border-zinc-100 hover:border-primary/20 transition-all group">
+                                        <div class="w-10 h-10 rounded-lg bg-zinc-50 border border-zinc-100 overflow-hidden shrink-0 flex items-center justify-center">
+                                            ${item.product?.thumbnail ?
+                            `<img src="${item.product.thumbnail}" class="w-full h-full object-cover">` :
+                            `<div class="text-zinc-300"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" height="20" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM4 4h16v5H4V4zm0 16v-9h16v9H4zm2-7h2v2H6v-2zm0 3h2v2H6v-2zm4-3h8v2h-8v-2zm0 3h8v2h-8v-2z"></path></svg></div>`}
+                                        </div>
+                                        <div class="flex-1">
+                                            <h5 class="text-[10px] font-black text-secondary uppercase italic leading-none">${item.product?.name || 'Unknown Item'}</h5>
+                                            <p class="text-[8px] font-bold text-zinc-400 uppercase tracking-widest mt-1">${item.product?.category || 'General'}</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="px-3 py-1 bg-secondary text-primary rounded-lg font-black text-[11px] italic">
+                                                ${item.quantity} ${item.product?.unit || 'Units'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                `).join('') : `
+                                    <div class="py-10 text-center space-y-2">
+                                        <div class="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto text-zinc-300">
+                                            <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" height="32" width="32" xmlns="http://www.w3.org/2000/svg"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM4 4h16v5H4V4zm0 16v-9h16v9H4zm2-7h2v2H6v-2zm0 3h2v2H6v-2zm4-3h8v2h-8v-2zm0 3h8v2h-8v-2z"></path></svg>
+                                        </div>
+                                        <p class="text-xs font-black text-zinc-400 uppercase tracking-widest italic">Zero Payload Assigned</p>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `,
+                    showConfirmButton: false,
+                    showCloseButton: true,
+                    width: '500px',
+                    customClass: {
+                        popup: 'rounded-[2.5rem] p-6',
+                        closeButton: 'focus:outline-none'
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching inventory:', error);
+            toast.error('Failed to sync inventory data');
+        } finally {
+            setInventoryLoading(false);
+        }
+    };
 
     const fetchFleetData = async () => {
         try {
@@ -221,6 +295,61 @@ const KitchenManagement = () => {
             customClass: {
                 popup: 'rounded-[2rem] p-0 overflow-hidden',
                 closeButton: 'focus:outline-none'
+            }
+        });
+    };
+
+    const handleEdit = (kitchen) => {
+        Swal.fire({
+            title: 'Edit Kitchen',
+            html: `
+                <input id="name" class="swal2-input" placeholder="Kitchen Name" value="${kitchen.name}">
+                <input id="location" class="swal2-input" placeholder="Location" value="${kitchen.location}">
+                <input id="manager" class="swal2-input" placeholder="Manager Name" value="${kitchen.manager}">
+                <input id="phone" class="swal2-input" placeholder="Phone" value="${kitchen.contact}">
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Update',
+            confirmButtonColor: '#F97316',
+            preConfirm: () => {
+                return {
+                    name: document.getElementById('name').value,
+                    location: document.getElementById('location').value,
+                    manager: document.getElementById('manager').value,
+                    phone: document.getElementById('phone').value
+                };
+            }
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    await updateKitchen(kitchen.id, result.value);
+                    toast.success('Kitchen updated successfully!');
+                    fetchFleetData();
+                } catch (error) {
+                    toast.error('Failed to update kitchen');
+                }
+            }
+        });
+    };
+
+    const handleDelete = (kitchen) => {
+        Swal.fire({
+            title: 'Delete Kitchen?',
+            text: `Are you sure you want to delete ${kitchen.name}?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    await deleteKitchen(kitchen.id);
+                    toast.success('Kitchen deleted successfully!');
+                    fetchFleetData();
+                } catch (error) {
+                    toast.error('Failed to delete kitchen');
+                }
             }
         });
     };
@@ -667,9 +796,26 @@ const KitchenManagement = () => {
                                             <p className="text-[7px] font-black text-zinc-300 uppercase tracking-[0.2em]">Deployment Team</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button onClick={() => handleSettings(kitchen)} className="p-2.5 bg-zinc-50 hover:bg-secondary hover:text-primary rounded-xl transition-all shadow-sm border border-zinc-100 group/btn cursor-pointer">
-                                                <MdSettings size={14} className="group-hover/btn:rotate-45 transition-transform" />
-                                            </button>
+                                            <Tooltip text="Edit Node" position="top">
+                                                <button onClick={() => handleEdit(kitchen)} className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all shadow-sm border border-blue-100 cursor-pointer">
+                                                    <MdEdit size={14} />
+                                                </button>
+                                            </Tooltip>
+                                            <Tooltip text="Delete Node" position="top">
+                                                <button onClick={() => handleDelete(kitchen)} className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-all shadow-sm border border-red-100 cursor-pointer">
+                                                    <MdDelete size={14} />
+                                                </button>
+                                            </Tooltip>
+                                            <Tooltip text="Stock Inventory" position="top">
+                                                <button onClick={() => handleViewStock(kitchen)} className="p-2.5 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all shadow-sm border border-orange-100 cursor-pointer">
+                                                    <MdInventory size={14} />
+                                                </button>
+                                            </Tooltip>
+                                            <Tooltip text="Uplink Config" position="top">
+                                                <button onClick={() => handleSettings(kitchen)} className="p-2.5 bg-zinc-50 hover:bg-secondary hover:text-primary rounded-xl transition-all shadow-sm border border-zinc-100 group/btn cursor-pointer">
+                                                    <MdSettings size={14} className="group-hover/btn:rotate-45 transition-transform" />
+                                                </button>
+                                            </Tooltip>
                                             <button onClick={() => handleTelemetry(kitchen)} className="flex items-center gap-2 px-4 py-2.5 bg-secondary text-primary rounded-xl transition-all shadow-lg shadow-black/5 text-[9px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 cursor-pointer">
                                                 Telemetry <MdArrowForward size={14} />
                                             </button>
@@ -753,12 +899,31 @@ const KitchenManagement = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button onClick={() => handleSettings(kitchen)} className="w-8 h-8 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-primary transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center shadow-sm cursor-pointer">
-                                                        <MdSettings size={16} />
-                                                    </button>
-                                                    <button onClick={() => handleTelemetry(kitchen)} className="w-8 h-8 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-secondary transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center shadow-sm cursor-pointer">
-                                                        <MdArrowForward size={16} />
-                                                    </button>
+                                                    <Tooltip text="Edit" position="left">
+                                                        <button onClick={() => handleEdit(kitchen)} className="w-8 h-8 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-600 transition-all border border-blue-100 flex items-center justify-center shadow-sm cursor-pointer">
+                                                            <MdEdit size={16} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip text="Delete" position="left">
+                                                        <button onClick={() => handleDelete(kitchen)} className="w-8 h-8 bg-red-50 hover:bg-red-100 rounded-lg text-red-600 transition-all border border-red-100 flex items-center justify-center shadow-sm cursor-pointer">
+                                                            <MdDelete size={16} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip text="Stock" position="left">
+                                                        <button onClick={() => handleViewStock(kitchen)} className="w-8 h-8 bg-orange-50 hover:bg-orange-100 rounded-lg text-orange-600 transition-all border border-orange-100 flex items-center justify-center shadow-sm cursor-pointer">
+                                                            <MdInventory size={16} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip text="Config" position="left">
+                                                        <button onClick={() => handleSettings(kitchen)} className="w-8 h-8 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-primary transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center shadow-sm cursor-pointer">
+                                                            <MdSettings size={16} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip text="Telemetry" position="left">
+                                                        <button onClick={() => handleTelemetry(kitchen)} className="w-8 h-8 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-secondary transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center shadow-sm cursor-pointer">
+                                                            <MdArrowForward size={16} />
+                                                        </button>
+                                                    </Tooltip>
                                                 </div>
                                             </td>
                                         </tr>

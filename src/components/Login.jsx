@@ -9,7 +9,7 @@ const Login = ({ setIsAuthenticated }) => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    
+
     try {
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
@@ -18,9 +18,9 @@ const Login = ({ setIsAuthenticated }) => {
         },
         body: JSON.stringify(formData)
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
         localStorage.setItem('token', data.token)
         localStorage.setItem('user', JSON.stringify(data.user))
@@ -32,7 +32,7 @@ const Login = ({ setIsAuthenticated }) => {
     } catch (error) {
       toast.error('Connection error. Please check if backend is running.')
     }
-    
+
     setLoading(false)
   }
 
@@ -55,8 +55,8 @@ const Login = ({ setIsAuthenticated }) => {
               type="email"
               placeholder="Email"
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-              className="w-full px-6 py-4 border-2 text-white border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-400 transition-all duration-300 bg-gray-50 focus:bg-white group-hover:border-orange-300"
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-6 py-4 border-2 text-gray-900 border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-400 transition-all duration-300 bg-gray-50 focus:bg-white group-hover:border-orange-300"
               required
             />
           </div>
@@ -66,8 +66,8 @@ const Login = ({ setIsAuthenticated }) => {
               type="password"
               placeholder="Password"
               value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-              className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-400 transition-all duration-300 bg-gray-50 focus:bg-white group-hover:border-orange-300"
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-6 py-4 border-2 text-gray-900 border-gray-200 rounded-xl focus:ring-4 focus:ring-orange-100 focus:border-orange-400 transition-all duration-300 bg-gray-50 focus:bg-white group-hover:border-orange-300"
               required
             />
           </div>

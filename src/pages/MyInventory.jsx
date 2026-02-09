@@ -1,23 +1,48 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { MdInventory, MdWarning, MdAssessment, MdSearch, MdHistory, MdArrowForward } from 'react-icons/md';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    MdInventory,
+    MdWarning,
+    MdSearch,
+    MdTrendingUp,
+    MdTableChart,
+    MdRefresh,
+    MdReportProblem,
+    MdCheckCircle,
+    MdError
+} from 'react-icons/md';
 import { getUserInventory, getTransferHistory } from '../utils/api';
 import toast from 'react-hot-toast';
+import Tooltip from '../components/common/Tooltip';
 
 const MyInventory = () => {
     const [inventory, setInventory] = useState([]);
     const [transfers, setTransfers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [search, setSearch] = useState('');
+    const [filterStatus, setFilterStatus] = useState('All');
 
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [invRes, transRes] = await Promise.all([getUserInventory(), getTransferHistory()]);
-            if (invRes.data.success) setInventory(invRes.data.inventory);
-            if (transRes.data.success) setTransfers(transRes.data.transfers);
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+            const [invRes, transferRes] = await Promise.all([
+                getUserInventory(),
+                getTransferHistory()
+            ]);
+
+            if (invRes.data.success) {
+                setInventory(invRes.data.inventory || []);
+            }
+
+            if (transferRes.data.success) {
+                setTransfers(transferRes.data.transfers || []);
+            }
         } catch (error) {
-            toast.error('Failed to load inventory');
+            console.error('Inventory Fetch Error:', error);
+            toast.error('Failed to load inventory data');
         } finally {
             setLoading(false);
         }
@@ -27,133 +52,238 @@ const MyInventory = () => {
         fetchData();
     }, []);
 
-    const filteredInventory = inventory.filter(item =>
-        item.product.name.toLowerCase().includes(search.toLowerCase())
-    );
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await fetchData();
+        setIsRefreshing(false);
+        toast.success('Inventory Updated');
+    };
+
+    const stats = useMemo(() => {
+        const remainingStock = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        const assignedStock = transfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
+        const usedStock = assignedStock - remainingStock;
+        const lowStock = inventory.filter(item => {
+            const min = item.product?.minStock || 10;
+            return item.quantity > 0 && item.quantity <= min;
+        }).length;
+        const outOfStock = inventory.filter(item => item.quantity <= 0).length;
+
+        return { remainingStock, assignedStock, usedStock, lowStock, outOfStock };
+    }, [inventory, transfers]);
+
+    const filteredInventory = useMemo(() => {
+        return inventory.filter(item => {
+            const matchesSearch = item.product?.name?.toLowerCase().includes(search.toLowerCase()) ||
+                item.product?.category?.toLowerCase().includes(search.toLowerCase());
+
+            const min = item.product?.minStock || 10;
+            const status = item.quantity <= 0 ? 'Out of Stock' :
+                item.quantity <= min ? 'Low Stock' : 'In Stock';
+
+            const matchesFilter = filterStatus === 'All' || status === filterStatus;
+
+            return matchesSearch && matchesFilter;
+        });
+    }, [inventory, search, filterStatus]);
 
     return (
-        <div className="max-w-[1400px] mx-auto space-y-6 p-4 lg:p-6 animate-fade-in text-secondary">
+        <div className="max-w-[1600px] mx-auto space-y-6 p-6 animate-fade-in">
             {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-primary/10 rounded-lg text-primary border border-primary/20 shadow-sm">
-                            <MdInventory size={16} />
-                        </div>
-                        <span className="text-primary font-black tracking-widest text-[9px] uppercase italic bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10">Department Stock</span>
-                    </div>
-                    <h1 className="text-3xl font-black text-secondary tracking-tight italic leading-none">My Assigned Inventory</h1>
-                    <p className="text-zinc-500 text-[11px] font-medium">Stock levels assigned to your department by management.</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-black text-secondary">My Stock</h1>
+                    <p className="text-sm text-zinc-500 mt-1">Kitchen Inventory Management</p>
                 </div>
-
-                <div className="relative w-full max-w-md group">
-                    <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-primary transition-colors" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search assigned products..."
-                        className="w-full bg-white border border-zinc-100 rounded-2xl py-3.5 pl-12 pr-4 font-bold text-sm outline-none focus:border-primary shadow-sm"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
+                <div className="flex items-center gap-3">
+                    <div className="relative">
+                        <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
+                        <input
+                            type="text"
+                            placeholder="Search products..."
+                            className="bg-white border border-zinc-200 rounded-xl py-3 pl-12 pr-4 text-sm outline-none focus:border-primary w-80"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <Tooltip text="Refresh" position="top">
+                        <button
+                            onClick={handleRefresh}
+                            className={`p-3 bg-secondary text-primary rounded-xl hover:scale-105 transition-all ${isRefreshing ? 'animate-spin' : ''}`}
+                        >
+                            <MdRefresh size={20} />
+                        </button>
+                    </Tooltip>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Inventory Table */}
-                <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="lg:col-span-8 bg-white rounded-[2.5rem] border border-zinc-100 shadow-premium overflow-hidden"
-                >
-                    <div className="p-6 border-b border-zinc-50 bg-zinc-50/50 flex items-center justify-between">
-                        <h2 className="text-sm font-black text-secondary uppercase tracking-tight">Current Stock Levels</h2>
-                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full border border-zinc-100">
-                            {filteredInventory.length} Items Found
-                        </span>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                            <MdInventory size={24} />
+                        </div>
+                        <span className="text-3xl font-black text-secondary">{stats.assignedStock}</span>
                     </div>
+                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Total Assigned</p>
+                </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="bg-zinc-50/50 text-left border-b border-zinc-100">
-                                    <th className="p-5 text-[10px] font-black text-zinc-400 uppercase tracking-widest">Product Details</th>
-                                    <th className="p-5 text-[10px] font-black text-zinc-400 uppercase tracking-widest">Status</th>
-                                    <th className="p-5 text-[10px] font-black text-zinc-400 uppercase tracking-widest text-right">Available Qty</th>
+                <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                            <MdCheckCircle size={24} />
+                        </div>
+                        <span className="text-3xl font-black text-secondary">{stats.remainingStock}</span>
+                    </div>
+                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Remaining Stock</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
+                            <MdTrendingUp size={24} />
+                        </div>
+                        <span className="text-3xl font-black text-secondary">{stats.usedStock}</span>
+                    </div>
+                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Used Stock</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
+                            <MdWarning size={24} />
+                        </div>
+                        <span className="text-3xl font-black text-secondary">{stats.lowStock}</span>
+                    </div>
+                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Low Stock</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-red-50 text-red-600 rounded-xl flex items-center justify-center">
+                            <MdReportProblem size={24} />
+                        </div>
+                        <span className="text-3xl font-black text-secondary">{stats.outOfStock}</span>
+                    </div>
+                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Out of Stock</p>
+                </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                    <h2 className="text-lg font-black text-secondary">Stock Details</h2>
+                    <div className="flex bg-zinc-100 p-1 rounded-xl">
+                        {['All', 'In Stock', 'Low Stock', 'Out of Stock'].map(st => (
+                            <button
+                                key={st}
+                                onClick={() => setFilterStatus(st)}
+                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterStatus === st ? 'bg-secondary text-primary' : 'text-zinc-500'}`}
+                            >
+                                {st}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="bg-zinc-50">
+                                <th className="px-6 py-4 text-left text-[9px] font-black text-zinc-400 uppercase tracking-widest">Product</th>
+                                <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Assigned</th>
+                                <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Current</th>
+                                <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Used</th>
+                                <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Min Stock</th>
+                                <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Status</th>
+                                <th className="px-6 py-4 text-right text-[9px] font-black text-zinc-400 uppercase tracking-widest">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="7" className="px-6 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                            <p className="text-sm font-bold text-zinc-400">Loading...</p>
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    <tr><td colSpan="3" className="p-10 text-center text-zinc-400 font-bold">Checking vault...</td></tr>
-                                ) : filteredInventory.length === 0 ? (
-                                    <tr><td colSpan="3" className="p-10 text-center text-zinc-400 font-bold">No stock assigned yet.</td></tr>
-                                ) : filteredInventory.map((item) => (
-                                    <tr key={item._id} className="border-b border-zinc-50 hover:bg-zinc-50/30 transition-colors">
-                                        <td className="p-5">
+                            ) : filteredInventory.length === 0 ? (
+                                <tr>
+                                    <td colSpan="7" className="px-6 py-20 text-center">
+                                        <p className="text-sm font-bold text-zinc-400">No products found</p>
+                                    </td>
+                                </tr>
+                            ) : filteredInventory.map((item) => {
+                                const min = item.product?.minStock || 10;
+                                const isOut = item.quantity <= 0;
+                                const isLow = item.quantity <= min && !isOut;
+
+                                // Find transfer history for this product
+                                const productTransfers = transfers.filter(
+                                    t => t.product?._id === item.product?._id || t.product === item.product?._id
+                                );
+                                const initialQty = productTransfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
+                                const usedQty = initialQty - item.quantity;
+
+                                return (
+                                    <tr key={item._id} className="border-b border-zinc-50 hover:bg-zinc-50">
+                                        <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center text-primary border border-primary/10">
-                                                    <MdInventory size={18} />
+                                                <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center">
+                                                    {item.product?.thumbnail ? (
+                                                        <img src={item.product.thumbnail} alt="" className="w-full h-full object-cover rounded-xl" />
+                                                    ) : (
+                                                        <MdInventory size={20} className="text-zinc-400" />
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <p className="font-black text-secondary text-sm">{item.product.name}</p>
-                                                    <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{item.product.category}</p>
+                                                    <p className="font-bold text-secondary text-sm">{item.product?.name}</p>
+                                                    <p className="text-[10px] text-zinc-400 font-bold uppercase">{item.product?.category}</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-5">
-                                            <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase ${item.quantity > 5 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-                                                }`}>
-                                                {item.quantity > 5 ? 'Sufficient' : 'Low Stock'}
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="text-lg font-black text-blue-600">
+                                                {initialQty}
+                                            </span>
+                                            <span className="text-[10px] text-zinc-400 ml-1 font-bold">{item.product?.unit}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className={`text-2xl font-black ${isOut ? 'text-red-500' : isLow ? 'text-orange-500' : 'text-emerald-600'}`}>
+                                                {item.quantity}
+                                            </span>
+                                            <span className="text-[10px] text-zinc-400 ml-1 font-bold">{item.product?.unit}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="text-lg font-black text-purple-600">
+                                                {usedQty}
+                                            </span>
+                                            <span className="text-[10px] text-zinc-400 ml-1 font-bold">{item.product?.unit}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="px-3 py-1 bg-zinc-100 text-zinc-600 rounded-lg text-xs font-bold">
+                                                {min} {item.product?.unit}
                                             </span>
                                         </td>
-                                        <td className="p-5 text-right">
-                                            <p className="text-lg font-black text-secondary">{item.quantity}</p>
-                                            <p className="text-[9px] font-bold text-zinc-400 uppercase">{item.product.unit}</p>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${isOut ? 'bg-red-50 text-red-600' : isLow ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                <div className={`w-2 h-2 rounded-full ${isOut ? 'bg-red-600' : isLow ? 'bg-orange-600' : 'bg-emerald-600'}`} />
+                                                {isOut ? 'Out' : isLow ? 'Low' : 'Good'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <p className="text-lg font-black text-secondary">₹{(item.quantity * (item.product?.price || 0)).toLocaleString('en-IN')}</p>
+                                            <p className="text-[9px] text-zinc-400 font-bold">@₹{item.product?.price || 0}/{item.product?.unit}</p>
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </motion.div>
-
-                {/* Transfer History */}
-                <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="lg:col-span-4 space-y-6"
-                >
-                    <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-premium overflow-hidden">
-                        <div className="p-6 bg-zinc-50/50 border-b border-zinc-100 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center text-primary shadow-sm border border-primary/10">
-                                    <MdHistory size={18} />
-                                </div>
-                                <h3 className="text-sm font-black text-secondary uppercase tracking-tight italic">Transfer Logs</h3>
-                            </div>
-                        </div>
-
-                        <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
-                            {transfers.slice(0, 10).map((log, i) => (
-                                <div key={i} className="p-4 rounded-2xl bg-zinc-50 border border-zinc-100 group relative overflow-hidden">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-1.5 text-zinc-400 text-[8px] font-black uppercase tracking-widest">
-                                                {log.fromUser?.role === 'super_admin' ? 'Management' : 'Self'} <MdArrowForward /> {log.toUser?.role.replace('_', ' ')}
-                                            </div>
-                                            <p className="font-black text-secondary text-xs">{log.product.name}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-black text-primary">+{log.quantity}</p>
-                                            <p className="text-[8px] font-bold text-zinc-400 uppercase">{log.product.unit}</p>
-                                        </div>
-                                    </div>
-                                    <p className="text-[8px] text-zinc-500 font-medium italic">"{log.notes || 'Routine stock allocation'}"</p>
-                                    <p className="mt-2 text-[7px] font-black text-zinc-400 uppercase tracking-tighter">{new Date(log.createdAt).toLocaleString('en-IN')}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </motion.div>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

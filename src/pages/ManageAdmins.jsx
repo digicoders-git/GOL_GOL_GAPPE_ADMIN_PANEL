@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { MdPeople, MdAdd, MdDelete, MdEmail, MdSecurity, MdShield, MdPersonAdd } from 'react-icons/md';
-import { getUsers, registerUser, deleteUser } from '../utils/api';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 
@@ -18,9 +17,14 @@ const ManageAdmins = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await getUsers();
-            if (response.data.success) {
-                setUsers(response.data.users);
+            const response = await fetch('http://localhost:5000/api/admins', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setUsers(data.users);
             }
         } catch (error) {
             toast.error('Failed to load admins');
@@ -36,15 +40,25 @@ const ManageAdmins = () => {
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
-            const response = await registerUser(formData);
-            if (response.data.success) {
+            const response = await fetch('http://localhost:5000/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify(formData)
+            });
+            const data = await response.json();
+            if (data.success) {
                 toast.success('Admin created successfully!');
                 setShowModal(false);
                 setFormData({ email: '', password: '', role: 'billing_admin' });
                 fetchUsers();
+            } else {
+                toast.error(data.message || 'Failed to create admin');
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to create admin');
+            toast.error('Failed to create admin');
         }
     };
 
@@ -61,8 +75,14 @@ const ManageAdmins = () => {
 
         if (result.isConfirmed) {
             try {
-                const response = await deleteUser(id);
-                if (response.data.success) {
+                const response = await fetch(`http://localhost:5000/api/users/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
                     toast.success('Admin deleted');
                     fetchUsers();
                 }
@@ -91,7 +111,7 @@ const ManageAdmins = () => {
                     onClick={() => setShowModal(true)}
                     className="flex items-center gap-2 bg-secondary text-primary px-6 py-3 rounded-xl hover:bg-black transition-all font-black text-xs shadow-lg shadow-secondary/20 cursor-pointer"
                 >
-                    <MdAdd size={20} /> ADD NEW ADMIN
+                    <MdAdd size={20} /> ADD NEW USER
                 </button>
             </div>
 
@@ -111,15 +131,17 @@ const ManageAdmins = () => {
                                 <MdPeople />
                             </div>
                             <div>
-                                <h3 className="font-black text-secondary text-lg">{user.email.split('@')[0]}</h3>
+                                <h3 className="font-black text-secondary text-lg">
+                                    {user.email ? user.email.split('@')[0] : (user.name || user.mobile || 'Admin')}
+                                </h3>
                                 <p className={`text-[10px] font-black uppercase tracking-widest ${user.role === 'billing_admin' ? 'text-blue-500' : 'text-emerald-500'
                                     }`}>{user.role.replace('_', ' ')}</p>
                             </div>
                         </div>
 
                         <div className="space-y-3 mb-6">
-                            <div className="flex items-center gap-3 text-xs text-zinc-500 font-bold">
-                                <MdEmail className="text-zinc-400" /> {user.email}
+                            <div className="flex items-center gap-3 text-xs text-secondary font-bold">
+                                <MdEmail className="text-primary/40" /> {user.email || user.mobile || 'No contact added'}
                             </div>
                             <div className="flex items-center gap-3 text-xs text-zinc-500 font-bold">
                                 <MdSecurity className="text-zinc-400" /> Partial Access

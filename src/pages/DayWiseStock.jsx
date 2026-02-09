@@ -43,22 +43,38 @@ const DayWiseStock = () => {
     const fetchData = async () => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const role = user.role || 'super_admin';
+        const isAdmin = role === 'super_admin' || role === 'billing_admin' || role === 'admin';
 
         try {
             setLoading(true);
-            const response = role === 'super_admin' ? await getProducts() : await getUserInventory();
+            const response = isAdmin ? await getProducts() : await getUserInventory();
             const logRes = await getStockLogs();
 
+            console.log('Stock Logs Response:', logRes.data);
+            console.log('Products/Inventory Response:', response.data);
+
             if (response.data.success) {
-                const rawProducts = role === 'super_admin' ? response.data.products : response.data.inventory;
+                const rawProducts = isAdmin ? response.data.products : response.data.inventory;
                 const logs = logRes.data.success ? logRes.data.logs : [];
+
+                console.log('Raw Products:', rawProducts);
+                console.log('Logs:', logs);
 
                 const movements = rawProducts.map((p, i) => {
                     const item = p.product || p;
-                    const itemLogs = logs.filter(l => l.product?._id === item._id && l.createdAt.startsWith(selectedDate));
 
-                    const added = itemLogs.filter(l => l.type === 'Add').reduce((acc, curr) => acc + curr.quantity, 0);
-                    const sold = itemLogs.filter(l => l.type === 'Sale' || l.type === 'Bill').reduce((acc, curr) => acc + curr.quantity, 0);
+                    // Convert selectedDate to ISO date string for comparison
+                    const selectedDateStr = new Date(selectedDate).toISOString().split('T')[0];
+
+                    // Filter logs for this product and date
+                    const itemLogs = logs.filter(l => {
+                        if (!l.product || !l.product._id || !l.createdAt) return false;
+                        const logDateStr = new Date(l.createdAt).toISOString().split('T')[0];
+                        return l.product._id === item._id && logDateStr === selectedDateStr;
+                    });
+
+                    const added = itemLogs.filter(l => l.type === 'ADD').reduce((acc, curr) => acc + (curr.quantity || 0), 0);
+                    const sold = itemLogs.filter(l => l.type === 'REMOVE').reduce((acc, curr) => acc + (curr.quantity || 0), 0);
 
                     return {
                         id: item._id,
@@ -67,10 +83,11 @@ const DayWiseStock = () => {
                         added,
                         sold,
                         balanced: p.quantity || item.quantity,
-                        waste: itemLogs.filter(l => l.type === 'Adjustment' && l.quantity < 0).reduce((acc, curr) => acc + Math.abs(curr.quantity), 0),
+                        waste: itemLogs.filter(l => l.type === 'ADJUSTMENT' && l.quantity < 0).reduce((acc, curr) => acc + Math.abs(curr.quantity || 0), 0),
                         status: (p.quantity || item.quantity) > 10 ? 'Surplus' : 'Deficit'
                     };
                 });
+                console.log('Calculated Movements:', movements);
                 setStockMovements(movements);
             }
         } catch (error) {
@@ -138,28 +155,28 @@ const DayWiseStock = () => {
         return matchesSearch && matchesStatus;
     });
 
-    // --- Chart Configurations with Full Animations ---
+    // Calculate real stats from data
+    const totalSales = filteredMovements.reduce((sum, m) => sum + m.sold, 0);
+    const totalWaste = filteredMovements.reduce((sum, m) => sum + m.waste, 0);
+    const totalAdded = filteredMovements.reduce((sum, m) => sum + m.added, 0);
+    const efficiency = totalAdded > 0 ? (((totalAdded - totalWaste) / totalAdded) * 100).toFixed(1) : 0;
+    const totalBalance = filteredMovements.reduce((sum, m) => sum + m.balanced, 0);
+
+    // Dynamic chart data from actual stock movements
+    const topProducts = filteredMovements.slice(0, 5);
     const stockTrendChartOptions = {
         chart: {
             type: 'areaspline',
             backgroundColor: 'transparent',
             height: 300,
             style: { fontFamily: 'inherit' },
-            animation: {
-                duration: 2000,
-                easing: 'easeOutBounce'
-            }
+            animation: { duration: 2000, easing: 'easeOutBounce' }
         },
         title: { text: null },
         xAxis: {
-            categories: ['Gol Gappe', 'Dahi Bhalla', 'Masala Water', 'Papdi Chaat', 'Aloo Tikki'],
+            categories: topProducts.map(p => p.item),
             labels: {
-                style: {
-                    color: '#94a3b8',
-                    fontWeight: '900',
-                    fontSize: '9px',
-                    textTransform: 'uppercase'
-                },
+                style: { color: '#94a3b8', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase' },
                 rotation: -15
             },
             gridLineWidth: 0,
@@ -167,13 +184,7 @@ const DayWiseStock = () => {
         },
         yAxis: {
             title: { text: null },
-            labels: {
-                style: {
-                    color: '#94a3b8',
-                    fontWeight: '900',
-                    fontSize: '10px'
-                }
-            },
+            labels: { style: { color: '#94a3b8', fontWeight: '900', fontSize: '10px' } },
             gridLineColor: '#f1f5f9',
             gridLineDashStyle: 'Dash'
         },
@@ -185,22 +196,13 @@ const DayWiseStock = () => {
             borderRadius: 16,
             borderWidth: 2,
             borderColor: '#10B981',
-            shadow: {
-                color: 'rgba(16, 185, 129, 0.3)',
-                offsetX: 0,
-                offsetY: 4,
-                opacity: 0.5,
-                width: 10
-            }
+            shadow: { color: 'rgba(16, 185, 129, 0.3)', offsetX: 0, offsetY: 4, opacity: 0.5, width: 10 }
         },
         plotOptions: {
             areaspline: {
                 fillColor: {
                     linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
-                    stops: [
-                        [0, 'rgba(16, 185, 129, 0.3)'],
-                        [1, 'rgba(16, 185, 129, 0.01)']
-                    ]
+                    stops: [[0, 'rgba(16, 185, 129, 0.3)'], [1, 'rgba(16, 185, 129, 0.01)']]
                 },
                 lineWidth: 3,
                 marker: {
@@ -210,58 +212,36 @@ const DayWiseStock = () => {
                     lineWidth: 3,
                     lineColor: '#10b981',
                     symbol: 'circle',
-                    states: {
-                        hover: {
-                            enabled: true,
-                            radius: 8,
-                            lineWidth: 4
-                        }
-                    }
+                    states: { hover: { enabled: true, radius: 8, lineWidth: 4 } }
                 },
                 dataLabels: {
                     enabled: true,
-                    formatter: function () {
-                        return this.y;
-                    },
-                    style: {
-                        fontSize: '10px',
-                        fontWeight: '900',
-                        color: '#2D1B0D',
-                        textOutline: '2px #ffffff'
-                    },
+                    formatter: function () { return this.y; },
+                    style: { fontSize: '10px', fontWeight: '900', color: '#2D1B0D', textOutline: '2px #ffffff' },
                     y: -10
                 },
-                animation: {
-                    duration: 2000
-                }
+                animation: { duration: 2000 }
             }
         },
         series: [{
             name: 'Final Balance',
-            data: [1250, 380, 85, 220, 310],
+            data: topProducts.map(p => p.balanced),
             color: '#10b981',
-            animation: {
-                duration: 2500,
-                easing: 'easeOutQuart'
-            }
+            animation: { duration: 2500, easing: 'easeOutQuart' }
         }],
         credits: { enabled: false }
     };
 
+    const wasteData = filteredMovements.filter(p => p.waste > 0).slice(0, 5);
+    const colors = ['#ef4444', '#f59e0b', '#F97316', '#94a3b8', '#3b82f6'];
     const wasteAnalysisChartOptions = {
         chart: {
             type: 'pie',
             backgroundColor: 'transparent',
             height: 300,
             style: { fontFamily: 'inherit' },
-            animation: {
-                duration: 2000
-            },
-            options3d: {
-                enabled: true,
-                alpha: 45,
-                beta: 0
-            }
+            animation: { duration: 2000 },
+            options3d: { enabled: true, alpha: 45, beta: 0 }
         },
         title: { text: null },
         tooltip: {
@@ -272,13 +252,7 @@ const DayWiseStock = () => {
             borderRadius: 16,
             borderWidth: 2,
             borderColor: '#F97316',
-            shadow: {
-                color: 'rgba(249, 115, 22, 0.3)',
-                offsetX: 0,
-                offsetY: 4,
-                opacity: 0.5,
-                width: 10
-            }
+            shadow: { color: 'rgba(249, 115, 22, 0.3)', offsetX: 0, offsetY: 4, opacity: 0.5, width: 10 }
         },
         plotOptions: {
             pie: {
@@ -290,63 +264,29 @@ const DayWiseStock = () => {
                     enabled: true,
                     format: '<b>{point.name}</b><br>{point.y}',
                     distance: 15,
-                    style: {
-                        fontWeight: '900',
-                        color: '#2D1B0D',
-                        textTransform: 'uppercase',
-                        fontSize: '10px',
-                        textOutline: '2px #ffffff',
-                        letterSpacing: '0.5px'
-                    },
+                    style: { fontWeight: '900', color: '#2D1B0D', textTransform: 'uppercase', fontSize: '10px', textOutline: '2px #ffffff', letterSpacing: '0.5px' },
                     connectorColor: '#94a3b8',
                     connectorWidth: 2
                 },
                 showInLegend: true,
                 borderWidth: 3,
                 borderColor: '#ffffff',
-                states: {
-                    hover: {
-                        brightness: 0.1,
-                        halo: {
-                            size: 15,
-                            opacity: 0.25
-                        }
-                    }
-                },
+                states: { hover: { brightness: 0.1, halo: { size: 15, opacity: 0.25 } } },
                 point: {
                     events: {
-                        mouseOver: function () {
-                            this.graphic.attr({
-                                translateY: -10
-                            });
-                        },
-                        mouseOut: function () {
-                            this.graphic.attr({
-                                translateY: 0
-                            });
-                        }
+                        mouseOver: function () { this.graphic.attr({ translateY: -10 }); },
+                        mouseOut: function () { this.graphic.attr({ translateY: 0 }); }
                     }
                 },
-                animation: {
-                    duration: 2000,
-                    easing: 'easeOutBounce'
-                }
+                animation: { duration: 2000, easing: 'easeOutBounce' }
             }
         },
         legend: {
             align: 'center',
             verticalAlign: 'bottom',
             layout: 'horizontal',
-            itemStyle: {
-                fontWeight: '900',
-                fontSize: '10px',
-                textTransform: 'uppercase',
-                color: '#64748b',
-                letterSpacing: '1px'
-            },
-            itemHoverStyle: {
-                color: '#F97316'
-            },
+            itemStyle: { fontWeight: '900', fontSize: '10px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '1px' },
+            itemHoverStyle: { color: '#F97316' },
             symbolRadius: 8,
             symbolHeight: 10,
             symbolWidth: 10
@@ -354,68 +294,14 @@ const DayWiseStock = () => {
         series: [{
             name: 'Waste Distribution',
             colorByPoint: true,
-            data: [
-                {
-                    name: 'Gol Gappe',
-                    y: 20,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#ef4444'],
-                            [1, '#dc2626']
-                        ]
-                    },
-                    sliced: true,
-                    selected: true
-                },
-                {
-                    name: 'Aloo Tikki',
-                    y: 10,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#f59e0b'],
-                            [1, '#d97706']
-                        ]
-                    }
-                },
-                {
-                    name: 'Dahi Bhalla',
-                    y: 5,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#F97316'],
-                            [1, '#ea580c']
-                        ]
-                    }
-                },
-                {
-                    name: 'Papdi Chaat',
-                    y: 3,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#94a3b8'],
-                            [1, '#64748b']
-                        ]
-                    }
-                },
-                {
-                    name: 'Masala Water',
-                    y: 2,
-                    color: {
-                        linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 },
-                        stops: [
-                            [0, '#3b82f6'],
-                            [1, '#2563eb']
-                        ]
-                    }
-                }
-            ],
-            animation: {
-                duration: 2500
-            }
+            data: wasteData.length > 0 ? wasteData.map((p, i) => ({
+                name: p.item,
+                y: p.waste,
+                color: { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, colors[i]], [1, colors[i]]] },
+                sliced: i === 0,
+                selected: i === 0
+            })) : [{ name: 'No Waste', y: 1, color: '#10b981' }],
+            animation: { duration: 2500 }
         }],
         credits: { enabled: false }
     };
@@ -456,10 +342,10 @@ const DayWiseStock = () => {
             {/* --- Daily Summary Cards --- */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Total Sales', value: '₹14,500', trend: '+12%', icon: <MdTrendingUp />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Total Waste', value: '40 Units', trend: '-2%', icon: <MdWarning />, color: 'text-red-600', bg: 'bg-red-50' },
-                    { label: 'Efficiency', value: '96.4%', trend: '+0.5%', icon: <MdCheckCircle />, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'Inventory Value', value: '₹84,200', trend: 'Healthy', icon: <MdInventory />, color: 'text-orange-600', bg: 'bg-orange-50' }
+                    { label: 'Total Sales', value: `${totalSales} Units`, trend: totalSales > 0 ? '+' + totalSales : '0', icon: <MdTrendingUp />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Total Waste', value: `${totalWaste} Units`, trend: totalWaste > 0 ? totalWaste + ' lost' : 'None', icon: <MdWarning />, color: 'text-red-600', bg: 'bg-red-50' },
+                    { label: 'Efficiency', value: `${efficiency}%`, trend: efficiency > 95 ? 'Excellent' : 'Good', icon: <MdCheckCircle />, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Stock Balance', value: `${totalBalance} Units`, trend: 'Available', icon: <MdInventory />, color: 'text-orange-600', bg: 'bg-orange-50' }
                 ].map((stat, i) => (
                     <div key={i} className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-3.5 group hover:border-primary/30 transition-all">
                         <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform`}>

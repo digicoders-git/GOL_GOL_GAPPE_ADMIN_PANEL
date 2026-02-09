@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     MdOutlineKitchen,
@@ -13,18 +13,23 @@ import {
     MdArrowBack,
     MdRefresh,
     MdTimer,
-    MdMonitorWeight
+    MdMonitorWeight,
+    MdAdminPanelSettings
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
-import { createKitchen } from '../utils/api';
+import { createKitchen, getUsers } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 
 const AddKitchen = () => {
     const navigate = useNavigate();
+    const [admins, setAdmins] = useState([]);
+    const [billingAdmins, setBillingAdmins] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
         location: '',
         manager: '',
+        admin: '',
+        billingAdmin: '',
         phone: '',
         startTime: '08:00',
         endTime: '22:00',
@@ -32,6 +37,29 @@ const AddKitchen = () => {
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        const fetchAdmins = async () => {
+            try {
+                const response = await fetch('http://localhost:5000/api/admins', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const kitchenAdmins = data.users.filter(u => u.role === 'kitchen_admin');
+                    const billingAdminsList = data.users.filter(u => u.role === 'billing_admin');
+                    setAdmins(kitchenAdmins);
+                    setBillingAdmins(billingAdminsList);
+                }
+            } catch (error) {
+                console.error('Error fetching admins:', error);
+                toast.error('Failed to load administrators');
+            }
+        };
+        fetchAdmins();
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -46,6 +74,8 @@ const AddKitchen = () => {
                     name: '',
                     location: '',
                     manager: '',
+                    admin: '',
+                    billingAdmin: '',
                     phone: '',
                     startTime: '08:00',
                     endTime: '22:00',
@@ -128,6 +158,50 @@ const AddKitchen = () => {
                                                 value={formData.manager}
                                                 onChange={(e) => setFormData({ ...formData, manager: e.target.value })}
                                             />
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 space-y-5">
+                                        <div className="flex items-center gap-2 text-secondary font-black text-[10px] uppercase tracking-widest border-b border-zinc-50 pb-2">
+                                            <MdAdminPanelSettings className="text-primary" /> Authority Protocol
+                                        </div>
+                                        <div className="space-y-2 group">
+                                            <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Kitchen Administrator</label>
+                                            <div className="relative">
+                                                <MdAdminPanelSettings className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 group-focus-within:text-primary transition-colors text-lg" />
+                                                <select
+                                                    required
+                                                    className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner appearance-none cursor-pointer"
+                                                    value={formData.admin}
+                                                    onChange={(e) => setFormData({ ...formData, admin: e.target.value })}
+                                                >
+                                                    <option value="">Select Kitchen Admin</option>
+                                                    {admins.map(admin => (
+                                                        <option key={admin._id} value={admin._id}>
+                                                            {admin.email || admin.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 group">
+                                            <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Billing Administrator</label>
+                                            <div className="relative">
+                                                <MdAdminPanelSettings className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 group-focus-within:text-primary transition-colors text-lg" />
+                                                <select
+                                                    required
+                                                    className="w-full bg-zinc-50/50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold text-secondary text-sm outline-none focus:border-primary focus:bg-white transition-all shadow-inner appearance-none cursor-pointer"
+                                                    value={formData.billingAdmin}
+                                                    onChange={(e) => setFormData({ ...formData, billingAdmin: e.target.value })}
+                                                >
+                                                    <option value="">Select Billing Admin</option>
+                                                    {billingAdmins.map(admin => (
+                                                        <option key={admin._id} value={admin._id}>
+                                                            {admin.email || admin.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -241,7 +315,7 @@ const AddKitchen = () => {
                                 <button
                                     type="button"
                                     onClick={() => setFormData({
-                                        name: '', location: '', manager: '', phone: '',
+                                        name: '', location: '', manager: '', admin: '', billingAdmin: '', phone: '',
                                         startTime: '08:00', endTime: '22:00', capacity: 'High'
                                     })}
                                     className="flex-1 bg-zinc-100 text-zinc-500 font-black py-4 rounded-2xl hover:bg-zinc-200 transition-all text-[10px] uppercase tracking-widest border border-zinc-200"

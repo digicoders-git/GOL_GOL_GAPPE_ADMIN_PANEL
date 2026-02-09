@@ -8,11 +8,15 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const role = user.role === 'admin' ? 'super_admin' : user.role;
 
     if (!token) {
-        return <Navigate to="/login" replace />;
+        // Redirect to appropriate login page
+        const loginPath = user.role === 'user' ? '/user-login' : '/login';
+        return <Navigate to={loginPath} replace />;
     }
 
     if (allowedRoles && !allowedRoles.includes(role)) {
-        return <Navigate to="/dashboard" replace />;
+        // Redirect to role-specific dashboard
+        const redirectPath = role === 'user' ? '/user-dashboard' : '/dashboard';
+        return <Navigate to={redirectPath} replace />;
     }
 
     return children;

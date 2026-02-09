@@ -90,7 +90,7 @@ body {
 input,
 select,
 textarea {
-  color: var(--secondary) !important;
+  color: var(--secondary);
 }
 
 input::placeholder,

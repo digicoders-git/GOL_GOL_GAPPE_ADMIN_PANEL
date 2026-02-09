@@ -37,7 +37,7 @@ const ProductAssign = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const isAdmin = role === 'super_admin' || role === 'admin';
+            const isAdmin = role === 'super_admin' || role === 'admin' || role === 'billing_admin';
 
             const [prodRes, userRes, transRes] = await Promise.all([
                 isAdmin ? getProducts() : getUserInventory(),
@@ -55,12 +55,8 @@ const ProductAssign = () => {
                 console.log('Set Products:', fetchedProducts.length);
             }
             if (userRes.data.success) {
-                // Filter recipients: Admins can transfer to anyone except themselves/other super admins. 
-                const filtered = userRes.data.users.filter(u => {
-                    if (isAdmin) return u._id !== user.id; // Can't transfer to self
-                    if (role === 'billing_admin') return u.role === 'kitchen_admin';
-                    return false;
-                });
+                // Filter recipients: ONLY kitchen_admins are eligible for stock assignment
+                const filtered = userRes.data.users.filter(u => u.role === 'kitchen_admin');
                 setRecipientUsers(filtered);
                 console.log('Set Recipients:', filtered.length);
             }
@@ -154,7 +150,7 @@ const ProductAssign = () => {
                         },
                         title: { text: null },
                         xAxis: {
-                            categories: recipientUsers.map(u => u.email.split('@')[0]),
+                            categories: recipientUsers.map(u => u.email ? u.email.split('@')[0] : (u.name || u.mobile || 'Staff')),
                             labels: {
                                 style: { color: '#94a3b8', fontWeight: '900', fontSize: '9px' }
                             },
@@ -232,7 +228,9 @@ const ProductAssign = () => {
                                     >
                                         <option value="">Select Recipient</option>
                                         {recipientUsers.map(u => (
-                                            <option key={u._id} value={u._id}>{u.email} ({u.role.replace('_', ' ')})</option>
+                                            <option key={u._id} value={u._id}>
+                                                {u.name || u.email || u.mobile || 'Admin'} ({u.role.replace('_', ' ')})
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
@@ -337,7 +335,9 @@ const ProductAssign = () => {
                                                     </td>
                                                     <td className="px-5 py-3.5">
                                                         <div className="flex items-center gap-2 text-zinc-600 text-[10px] font-bold">
-                                                            {assign.fromUser?.email?.split('@')[0] || 'Unknown'} <MdArrowForward className="text-primary" /> {assign.toUser?.email?.split('@')[0] || 'Unknown'}
+                                                            {(assign.fromUser?.name || assign.fromUser?.email?.split('@')[0] || assign.fromUser?.mobile || 'System')}
+                                                            <MdArrowForward className="text-primary" />
+                                                            {(assign.toUser?.name || assign.toUser?.email?.split('@')[0] || assign.toUser?.mobile || 'Kitchen')}
                                                         </div>
                                                     </td>
                                                     <td className="px-5 py-3.5 text-center">

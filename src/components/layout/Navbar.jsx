@@ -4,15 +4,18 @@ import toast from 'react-hot-toast';
 
 const Navbar = ({ isOpen, toggleSidebar }) => {
     const navigate = useNavigate();
-    
+
     const handleLogout = () => {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const redirectPath = user.role === 'user' ? '/user-login' : '/login';
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         toast.success('Logged out successfully');
-        navigate('/login');
+        navigate(redirectPath);
     };
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const displayName = user.name || user.mobile || user.email || 'Admin';
     return (
         <nav className={`fixed top-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-primary/10 transition-all duration-300 z-40 flex items-center justify-between px-6 ${isOpen ? 'left-72' : 'left-20'
             }`}>
@@ -36,13 +39,13 @@ const Navbar = ({ isOpen, toggleSidebar }) => {
 
                 <div className="flex items-center gap-3 pl-4 border-l border-primary/10">
                     <div className="text-right hidden sm:block">
-                        <p className="text-sm font-bold text-secondary">{user.email || 'Admin'}</p>
-                        <p className="text-xs text-secondary/60">{user.role || 'admin'}</p>
+                        <p className="text-sm font-bold text-secondary">{displayName}</p>
+                        <p className="text-xs text-secondary/60 uppercase tracking-widest">{user.role || 'admin'}</p>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary border border-primary/20">
                         <User size={20} />
                     </div>
-                    <button 
+                    <button
                         onClick={handleLogout}
                         className="p-2.5 rounded-xl hover:bg-red-100 text-red-600 transition-colors ml-2"
                         title="Logout"

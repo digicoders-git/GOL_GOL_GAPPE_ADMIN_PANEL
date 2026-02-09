@@ -91,15 +91,34 @@ const Dashboard = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [billRes, prodRes, kitchenRes] = await Promise.all([
-                getBills(),
-                (role === 'super_admin' || role === 'admin') ? getProducts() : getUserInventory(),
-                getKitchens()
+
+            // Determine which product API to call based on role
+            let productPromise;
+            if (role === 'super_admin' || role === 'admin') {
+                productPromise = getProducts();
+            } else if (role === 'billing_admin' || role === 'kitchen_admin') {
+                productPromise = getUserInventory();
+            } else {
+                // For regular 'user' role, don't fetch inventory
+                productPromise = Promise.resolve({ data: { success: true, inventory: [] } });
+            }
+
+
+            const [billRes, prodRes, kitchenRes] = await Promise.allSettled([
+                getBills().catch(err => ({ data: { success: false, bills: [] }, error: err })),
+                productPromise.catch(err => ({ data: { success: false, inventory: [], products: [] }, error: err })),
+                getKitchens().catch(err => ({ data: { success: false, kitchens: [] }, error: err }))
             ]);
 
+            // Extract values from settled promises
+            const billData = billRes.status === 'fulfilled' ? billRes.value : billRes.reason || { data: { success: false, bills: [] } };
+            const prodData = prodRes.status === 'fulfilled' ? prodRes.value : prodRes.reason || { data: { success: false, inventory: [], products: [] } };
+            const kitchenData = kitchenRes.status === 'fulfilled' ? kitchenRes.value : kitchenRes.reason || { data: { success: false, kitchens: [] } };
+
+
             let bills = [];
-            if (billRes.data.success) {
-                bills = billRes.data.bills || [];
+            if (billData.data.success) {
+                bills = billData.data.bills || [];
                 const totalRevenue = bills.reduce((sum, b) => sum + b.totalAmount, 0);
                 const todayStr = new Date().toDateString();
                 const dailyOrders = bills.filter(b => new Date(b.createdAt).toDateString() === todayStr);
@@ -155,8 +174,8 @@ const Dashboard = () => {
                 }));
             }
 
-            if (prodRes.data.success) {
-                const items = (role === 'super_admin' || role === 'admin') ? (prodRes.data.products || []) : (prodRes.data.inventory || []);
+            if (prodData.data.success) {
+                const items = (role === 'super_admin' || role === 'admin') ? (prodData.data.products || []) : (prodData.data.inventory || []);
                 const lowStockCount = items.filter(p => (p.quantity || p.product?.quantity || 0) <= (p.minStock || 10)).length;
                 const outOfStockCount = items.filter(p => (p.quantity || p.product?.quantity || 0) === 0).length;
                 const inStockCount = items.length - lowStockCount - outOfStockCount;
@@ -184,8 +203,8 @@ const Dashboard = () => {
                 }));
             }
 
-            if (kitchenRes.data.success) {
-                const kitchens = kitchenRes.data.kitchens || [];
+            if (kitchenData.data.success) {
+                const kitchens = kitchenData.data.kitchens || [];
                 if (role === 'super_admin' || role === 'admin') {
                     setStats(prev => {
                         const newStats = [...prev];
@@ -196,7 +215,7 @@ const Dashboard = () => {
 
                 // --- Kitchen Performance (Efficiency %) ---
                 // Match bills with kitchens to calculate efficiency
-                const kitchenData = kitchens.slice(0, 5).map(k => {
+                const kitchenPerformanceData = kitchens.slice(0, 5).map(k => {
                     const kitchenBills = bills.filter(b =>
                         (b.kitchen?._id === k._id) || (b.kitchen === k._id)
                     );
@@ -210,10 +229,10 @@ const Dashboard = () => {
                 setChartsData(prev => ({
                     ...prev,
                     kitchen: {
-                        categories: kitchenData.map(kd => kd.name),
+                        categories: kitchenPerformanceData.map(kd => kd.name),
                         series: [{
                             name: 'Efficiency %',
-                            data: kitchenData.map(kd => kd.y),
+                            data: kitchenPerformanceData.map(kd => kd.y),
                             color: '#F97316'
                         }]
                     }
@@ -221,7 +240,17 @@ const Dashboard = () => {
             }
         } catch (error) {
             console.error('Dashboard fetch error:', error);
-            toast.error('Could not connect to server');
+            console.error('Error details:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status,
+                role: role
+            });
+
+            // Don't show error toast if it's just inventory issue
+            if (error.response?.status !== 500 || !error.config?.url?.includes('user-inventory')) {
+                toast.error('Could not connect to server');
+            }
         } finally {
             setLoading(false);
         }

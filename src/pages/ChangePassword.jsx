@@ -51,7 +51,7 @@ const ChangePassword = () => {
                 newPassword: formData.newPassword
             });
             if (response.data.success) {
-                toast.success('Password updated successfully! 🔐', { id: loadingToast });
+                toast.success('Password updated successfully!', { id: loadingToast });
                 setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
             }
         } catch (error) {

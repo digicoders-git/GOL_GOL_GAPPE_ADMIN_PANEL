@@ -11,8 +11,13 @@ import {
     KeyRound,
     LogOut,
     PackagePlus,
-    ArrowLeftRight
+    ArrowLeftRight,
+    UtensilsCrossed,
+    Users,
+    ShoppingCart,
+    Activity
 } from 'lucide-react';
+import { FaHome, FaUtensils, FaHistory, FaUser } from 'react-icons/fa';
 import logo from '../../assets/logo.jpeg';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -28,27 +33,38 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             { name: 'Manage Admins', icon: <Settings size={20} />, path: '/manage-admins' },
             { name: 'Add Product', icon: <PackagePlus size={20} />, path: '/add-product' },
             { name: 'Add Quantity', icon: <PlusCircle size={20} />, path: '/add-quantity' },
+            { name: 'Add Kitchen', icon: <UtensilsCrossed size={20} />, path: '/add-kitchen' },
+            { name: 'Manage Kitchen', icon: <ChefHat size={20} />, path: '/kitchen-management' },
+            { name: 'Kitchen Monitor', icon: <Activity size={20} />, path: '/kitchen-stock-monitor' },
             { name: 'Global Stock', icon: <Boxes size={20} />, path: '/product-quantity' },
             { name: 'Transfer Stock', icon: <ArrowLeftRight size={20} />, path: '/product-assign' },
-            { name: 'Kitchen Fleet', icon: <ChefHat size={20} />, path: '/kitchen-management' },
+            { name: 'All Customers', icon: <Users size={20} />, path: '/users' },
+            { name: 'Orders Tracking', icon: <ShoppingCart size={20} />, path: '/orders' },
+            
+            
             { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
         ],
         billing_admin: [
             { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-            { name: 'Assign Orders', icon: <Receipt size={20} />, path: '/add-billing' },
+            { name: 'Assign Orders', icon: <Receipt size={20} />, path: '/order-assign' },
             { name: 'Billing Records', icon: <Settings size={20} />, path: '/billing-management' },
             { name: 'My Inventory', icon: <Boxes size={20} />, path: '/my-inventory' },
-            { name: 'Transfer to Kitchen', icon: <ArrowLeftRight size={20} />, path: '/product-assign' },
             { name: 'Stock History', icon: <CalendarDays size={20} />, path: '/day-stock' },
             { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
         ],
         kitchen_admin: [
-            { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
+            { name: 'My Kitchen', icon: <LayoutDashboard size={20} />, path: '/kitchen-dashboard' },
             { name: 'Kitchen Orders', icon: <ChefHat size={20} />, path: '/kitchen-orders' },
             { name: 'My Stock', icon: <Boxes size={20} />, path: '/my-inventory' },
             { name: 'Stock Log', icon: <CalendarDays size={20} />, path: '/day-stock' },
             { name: 'Order History', icon: <Receipt size={20} />, path: '/billing-management' },
             { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
+        ],
+        user: [
+            { name: 'Home', icon: <FaHome size={20} />, path: '/user-dashboard' },
+            { name: 'Order Menu', icon: <FaUtensils size={20} />, path: '/order-menu' },
+            { name: 'My Orders', icon: <FaHistory size={20} />, path: '/user-orders' },
+            { name: 'Profile', icon: <FaUser size={20} />, path: '/profile' },
         ]
     };
 
@@ -61,9 +77,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     const navigate = useNavigate();
 
     const handleLogout = () => {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const redirectPath = user.role === 'user' ? '/user-login' : '/login';
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        navigate('/login');
+        navigate(redirectPath);
     };
 
     return (
@@ -83,22 +101,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 </div>
 
                 {/* Navigation Links */}
-                <div className="flex-1 overflow-y-auto px-3 space-y-2 py-2">
+                <div className="flex-1 overflow-y-auto px-3 space-y-3 py-4">
                     {menuItems.map((item) => (
                         <NavLink
                             key={item.path}
                             to={item.path}
                             className={({ isActive }) =>
-                                `flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 group ${isActive
-                                    ? 'bg-primary text-secondary font-semibold shadow-lg shadow-primary/20'
+                                `flex items-center gap-4 px-6 py-4 rounded-[1.5rem] transition-all duration-300 group relative ${isActive && (item.name !== 'Order Menu' || !window.location.hash)
+                                    ? 'bg-primary text-secondary font-black shadow-lg shadow-primary/20 scale-[1.02]'
                                     : 'text-white/70 hover:bg-white/5 hover:text-white'
                                 }`
                             }
                         >
                             <div className="shrink-0">{item.icon}</div>
-                            {isOpen && <span className="text-sm font-medium">{item.name}</span>}
+                            {isOpen && <span className="text-xs font-black uppercase tracking-widest">{item.name}</span>}
                             {!isOpen && (
-                                <div className="absolute left-20 bg-secondary text-white px-3 py-1.5 rounded-lg text-sm invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-[100] border border-white/10">
+                                <div className="absolute left-20 bg-secondary text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-[100] border border-white/10">
                                     {item.name}
                                 </div>
                             )}
