@@ -20,7 +20,7 @@ import toast from 'react-hot-toast';
 import { createKitchen, getUsers } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://gol-gol-gappe-admin-panel.vercel.app/api';
 
 const AddKitchen = () => {
     const navigate = useNavigate();
