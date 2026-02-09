@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { toast } from 'react-toastify'
 import logo from '../assets/logo.jpeg'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const Login = ({ setIsAuthenticated }) => {
   const [formData, setFormData] = useState({ email: 'admin@golgolgappe.com', password: 'admin123' })
   const [loading, setLoading] = useState(false)
@@ -11,7 +13,7 @@ const Login = ({ setIsAuthenticated }) => {
     setLoading(true)
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

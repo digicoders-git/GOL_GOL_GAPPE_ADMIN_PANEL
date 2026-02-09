@@ -20,6 +20,8 @@ import toast from 'react-hot-toast';
 import { createKitchen, getUsers } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const AddKitchen = () => {
     const navigate = useNavigate();
     const [admins, setAdmins] = useState([]);
@@ -41,7 +43,7 @@ const AddKitchen = () => {
     useEffect(() => {
         const fetchAdmins = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/admins', {
+                const response = await fetch(`${API_URL}/admins`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }

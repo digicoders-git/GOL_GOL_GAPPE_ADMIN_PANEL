@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { MdReceipt, MdCheckCircle, MdRestaurant, MdFlashOn, MdPerson, MdAccessTime } from 'react-icons/md';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const AddBilling = () => {
     const [stats, setStats] = useState({ totalOrders: 0, completed: 0, assigned: 0, topItem: 'N/A' });
     const [orders, setOrders] = useState([]);
@@ -12,7 +14,7 @@ const AddBilling = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/billing', {
+            const response = await fetch(`${API_URL}/billing`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();

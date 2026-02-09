@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { MdRestaurant, MdInventory, MdShoppingCart, MdTrendingUp, MdPeople, MdHistory, MdArrowForward, MdCheckCircle } from 'react-icons/md';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const KitchenAdminDashboard = () => {
     const [kitchen, setKitchen] = useState(null);
     const [orders, setOrders] = useState([]);
@@ -21,7 +23,7 @@ const KitchenAdminDashboard = () => {
             const user = JSON.parse(localStorage.getItem('user'));
             
             // Fetch kitchen info
-            const kitchenRes = await fetch('http://localhost:5000/api/kitchens', {
+            const kitchenRes = await fetch(`${API_URL}/kitchens`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const kitchenData = await kitchenRes.json();
@@ -29,7 +31,7 @@ const KitchenAdminDashboard = () => {
             setKitchen(myKitchen);
 
             // Fetch orders
-            const ordersRes = await fetch('http://localhost:5000/api/billing/kitchen-orders', {
+            const ordersRes = await fetch(`${API_URL}/billing/kitchen-orders`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const ordersData = await ordersRes.json();
@@ -38,7 +40,7 @@ const KitchenAdminDashboard = () => {
             }
 
             // Fetch inventory
-            const inventoryRes = await fetch('http://localhost:5000/api/products/user-inventory', {
+            const inventoryRes = await fetch(`${API_URL}/products/user-inventory`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const inventoryData = await inventoryRes.json();
@@ -47,7 +49,7 @@ const KitchenAdminDashboard = () => {
             }
 
             // Fetch stock transfers
-            const transferRes = await fetch('http://localhost:5000/api/products/transfer-history', {
+            const transferRes = await fetch(`${API_URL}/products/transfer-history`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const transferData = await transferRes.json();

@@ -4,6 +4,8 @@ import { MdPeople, MdAdd, MdDelete, MdEmail, MdSecurity, MdShield, MdPersonAdd }
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const ManageAdmins = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -17,7 +19,7 @@ const ManageAdmins = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await fetch('http://localhost:5000/api/admins', {
+            const response = await fetch(`${API_URL}/admins`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
@@ -40,7 +42,7 @@ const ManageAdmins = () => {
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch('http://localhost:5000/api/auth/register', {
+            const response = await fetch(`${API_URL}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -75,7 +77,7 @@ const ManageAdmins = () => {
 
         if (result.isConfirmed) {
             try {
-                const response = await fetch(`http://localhost:5000/api/users/${id}`, {
+                const response = await fetch(`${API_URL}/users/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
