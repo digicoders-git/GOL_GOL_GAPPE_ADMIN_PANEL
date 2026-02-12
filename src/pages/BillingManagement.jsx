@@ -30,6 +30,8 @@ import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { FaUtensils } from 'react-icons/fa';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const BillingManagement = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
@@ -54,14 +56,14 @@ const BillingManagement = () => {
 
             if (role === 'billing_admin') {
                 // Billing admin sees only their kitchen's orders
-                billRes = await fetch('http://localhost:5000/api/billing-admin/my-kitchen/orders', {
+                billRes = await fetch(`${API_URL}/billing-admin/my-kitchen/orders`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 const data = await billRes.json();
                 billRes = { data: { success: data.success, bills: data.orders || [] } };
 
                 // Get their kitchen
-                kitchenRes = await fetch('http://localhost:5000/api/billing-admin/my-kitchen', {
+                kitchenRes = await fetch(`${API_URL}/billing-admin/my-kitchen`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 const kitchenData = await kitchenRes.json();
