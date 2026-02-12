@@ -61,8 +61,19 @@ const MyInventory = () => {
 
     const stats = useMemo(() => {
         const remainingStock = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
-        const assignedStock = transfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
-        const usedStock = assignedStock - remainingStock;
+
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user._id || user.id;
+
+        const assignedStock = transfers.reduce((sum, t) => {
+            // Check if current user is the recipient
+            const isRecipient = t.toUser?._id === userId || t.toUser === userId;
+            return isRecipient ? sum + (t.quantity || 0) : sum;
+        }, 0);
+
+        // Used stock shouldn't be negative (in case of manual adds)
+        const usedStock = Math.max(0, assignedStock - remainingStock);
+
         const lowStock = inventory.filter(item => {
             const min = item.product?.minStock || 10;
             return item.quantity > 0 && item.quantity <= min;
