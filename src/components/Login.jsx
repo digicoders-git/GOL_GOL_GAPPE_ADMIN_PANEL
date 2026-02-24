@@ -32,7 +32,7 @@ const Login = ({ setIsAuthenticated }) => {
         toast.error(data.message || 'Login failed')
       }
     } catch (error) {
-      toast.error('Connection error. Please check if backend is running.')
+      toast.error('Invalid credentials')
     }
 
     setLoading(false)

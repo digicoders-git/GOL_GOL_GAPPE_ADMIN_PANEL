@@ -33,6 +33,7 @@ const OrdersTracking = lazy(() => import('./pages/OrdersTracking'));
 const BillingAdminDashboard = lazy(() => import('./pages/BillingAdminDashboard'));
 const KitchenAdminDashboard = lazy(() => import('./pages/KitchenAdminDashboard'));
 const KitchenStockMonitor = lazy(() => import('./pages/KitchenStockMonitor'));
+const OfferManagement = lazy(() => import('./pages/OfferManagement'));
 
 function App() {
   return (
@@ -68,6 +69,7 @@ function App() {
             <Route path="add-kitchen" element={<ProtectedRoute allowedRoles={['super_admin']}><AddKitchen /></ProtectedRoute>} />
             <Route path="kitchen-management" element={<ProtectedRoute allowedRoles={['super_admin']}><KitchenManagement /></ProtectedRoute>} />
             <Route path="kitchen-stock-monitor" element={<ProtectedRoute allowedRoles={['super_admin']}><KitchenStockMonitor /></ProtectedRoute>} />
+            <Route path="offers" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><OfferManagement /></ProtectedRoute>} />
 
             <Route path="order-assign" element={<ProtectedRoute allowedRoles={['super_admin', 'billing_admin']}><AddBilling /></ProtectedRoute>} />
             <Route path="product-assign" element={<ProtectedRoute allowedRoles={['super_admin', 'billing_admin']}><ProductAssign /></ProtectedRoute>} />

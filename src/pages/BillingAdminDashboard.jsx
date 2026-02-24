@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { MdRestaurant, MdShoppingCart, MdInventory, MdTrendingUp } from 'react-icons/md';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const BillingAdminDashboard = () => {
     const [kitchen, setKitchen] = useState(null);
     const [orders, setOrders] = useState([]);
@@ -18,7 +20,7 @@ const BillingAdminDashboard = () => {
             setLoading(true);
             const token = localStorage.getItem('token');
             
-            const kitchenRes = await fetch('http://localhost:5000/api/billing-admin/my-kitchen', {
+            const kitchenRes = await fetch(`${API_URL}/billing-admin/my-kitchen`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const kitchenData = await kitchenRes.json();
@@ -27,7 +29,7 @@ const BillingAdminDashboard = () => {
                 setKitchen(kitchenData.kitchen);
             }
 
-            const ordersRes = await fetch('http://localhost:5000/api/billing-admin/my-kitchen/orders', {
+            const ordersRes = await fetch(`${API_URL}/billing-admin/my-kitchen/orders`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const ordersData = await ordersRes.json();
@@ -35,7 +37,7 @@ const BillingAdminDashboard = () => {
                 setOrders(ordersData.orders);
             }
 
-            const inventoryRes = await fetch('http://localhost:5000/api/billing-admin/my-kitchen/inventory', {
+            const inventoryRes = await fetch(`${API_URL}/billing-admin/my-kitchen/inventory`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const inventoryData = await inventoryRes.json();

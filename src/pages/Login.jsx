@@ -29,7 +29,7 @@ const Login = () => {
                 toast.error('Invalid credentials');
             }
         } catch (error) {
-            toast.error('Connection error. Please check if backend is running.');
+            toast.error('Invalid credentials.');
         }
 
         setLoading(false);

@@ -3,12 +3,13 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     FaStar, FaArrowLeft, FaShoppingBag, FaUtensils,
-    FaInfoCircle, FaFire, FaLeaf, FaMapMarkerAlt
+    FaInfoCircle, FaFire, FaLeaf, FaMapMarkerAlt, FaTag, FaTimes
 } from 'react-icons/fa';
 import { getProduct, createBill } from '../utils/api';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import confetti from 'canvas-confetti';
+import axios from 'axios';
 
 const ProductDetail = () => {
     const { id } = useParams();
@@ -20,6 +21,9 @@ const ProductDetail = () => {
     const [quantity, setQuantity] = useState(1);
     const [ordering, setOrdering] = useState(false);
     const [selectedKitchen, setSelectedKitchen] = useState(null);
+    const [offerCode, setOfferCode] = useState('');
+    const [appliedOffer, setAppliedOffer] = useState(null);
+    const [validatingOffer, setValidatingOffer] = useState(false);
 
     useEffect(() => {
         fetchProductDetails();
@@ -72,6 +76,13 @@ const ProductDetail = () => {
             return;
         }
 
+        // Calculate totals
+        const itemTotal = product.price * quantity;
+        const packagingCharge = product.packagingCharge || 0;
+        const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
+        const discount = appliedOffer ? appliedOffer.discount : 0;
+        const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
+
         // --- SweetAlert Confirmation ---
         const result = await Swal.fire({
             title: `<span class="text-2xl font-black text-secondary uppercase italic tracking-tighter">Confirm Your Cravings</span>`,
@@ -81,9 +92,15 @@ const ProductDetail = () => {
                         <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Item</span>
                         <span class="text-sm font-black text-secondary">${product.name} x ${quantity}</span>
                     </div>
+                    ${appliedOffer ? `
+                    <div class="flex justify-between items-center bg-green-50 p-4 rounded-2xl border border-green-200">
+                        <span class="text-[10px] font-black text-green-600 uppercase tracking-widest">Discount (${appliedOffer.code})</span>
+                        <span class="text-sm font-black text-green-600">-₹${discount}</span>
+                    </div>
+                    ` : ''}
                     <div class="flex justify-between items-center bg-primary/10 p-4 rounded-2xl border border-primary/20">
                         <span class="text-[10px] font-black text-primary-dark uppercase tracking-widest">Total Valuation</span>
-                        <span class="text-xl font-black text-secondary">₹${product.price * quantity}</span>
+                        <span class="text-xl font-black text-secondary">₹${totalAmount}</span>
                     </div>
                     <p class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest text-center mt-4">Safe & Secure Payment via Cash on Delivery</p>
                 </div>
@@ -126,14 +143,15 @@ const ProductDetail = () => {
             const itemTotal = product.price * quantity;
             const packagingCharge = product.packagingCharge || 0;
             const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
-            const totalAmount = itemTotal + packagingCharge + gstAmount;
+            const discount = appliedOffer ? appliedOffer.discount : 0;
+            const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
 
             const orderData = {
                 customer: {
                     name: user.name || 'User',
                     phone: user.mobile
                 },
-                kitchen: selectedKitchen?._id, // Using selected kitchen
+                kitchen: selectedKitchen?._id,
                 items: [
                     {
                         product: product._id,
@@ -142,12 +160,23 @@ const ProductDetail = () => {
                     }
                 ],
                 totalAmount: totalAmount,
-                paymentMethod: 'Cash', // Default payment method
-                status: 'Pending' // Order will be visible to billing admin
+                paymentMethod: 'Cash',
+                status: 'Pending'
             };
 
             const response = await createBill(orderData);
             if (response.data.success) {
+                // Apply offer if used
+                if (appliedOffer) {
+                    try {
+                        await axios.post(`${import.meta.env.VITE_API_URL}/api/offers/apply`, 
+                            { code: appliedOffer.code },
+                            { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }}
+                        );
+                    } catch (err) {
+                        console.error('Failed to update offer usage:', err);
+                    }
+                }
                 // Trigger Confetti
                 confetti({
                     particleCount: 150,
@@ -198,6 +227,47 @@ const ProductDetail = () => {
     }
 
     if (!product) return null;
+
+    const handleApplyOffer = async () => {
+        if (!offerCode.trim()) {
+            toast.error('Please enter an offer code');
+            return;
+        }
+
+        setValidatingOffer(true);
+        try {
+            const itemTotal = product.price * quantity;
+            const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/offers/validate`, {
+                code: offerCode.toUpperCase(),
+                orderAmount: itemTotal
+            });
+
+            if (response.data.success) {
+                setAppliedOffer(response.data.offer);
+                toast.success(`Offer applied! You saved ₹${response.data.offer.discount}`);
+            }
+        } catch (error) {
+            const message = error.response?.data?.message || 'Invalid offer code';
+            toast.error(message);
+            setAppliedOffer(null);
+        } finally {
+            setValidatingOffer(false);
+        }
+    };
+
+    const handleRemoveOffer = () => {
+        setAppliedOffer(null);
+        setOfferCode('');
+        toast.success('Offer removed');
+    };
+
+    const calculateTotal = () => {
+        const itemTotal = product.price * quantity;
+        const packagingCharge = product.packagingCharge || 0;
+        const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
+        const discount = appliedOffer ? appliedOffer.discount : 0;
+        return itemTotal + packagingCharge + gstAmount - discount;
+    };
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 pb-10">
@@ -344,8 +414,53 @@ const ProductDetail = () => {
                         </div>
                         <div className="text-right">
                             <p className="text-xs font-bold text-secondary/30 uppercase tracking-widest mb-1">Total Amount</p>
-                            <p className="text-4xl font-black text-secondary">₹{product.price * quantity}</p>
+                            <p className="text-4xl font-black text-secondary">₹{calculateTotal()}</p>
                         </div>
+                    </div>
+
+                    {/* Offer Code Section */}
+                    <div className="bg-gradient-to-br from-primary/5 to-orange-50 p-6 rounded-2xl border border-primary/20">
+                        <div className="flex items-center gap-2 mb-4">
+                            <FaTag className="text-primary" />
+                            <h3 className="text-sm font-black text-secondary uppercase tracking-wider">Have a Promo Code?</h3>
+                        </div>
+                        
+                        {!appliedOffer ? (
+                            <div className="flex gap-3">
+                                <input
+                                    type="text"
+                                    value={offerCode}
+                                    onChange={(e) => setOfferCode(e.target.value.toUpperCase())}
+                                    placeholder="Enter code (e.g., SAVE50)"
+                                    className="flex-1 px-4 py-3 rounded-xl border border-primary/20 bg-white font-bold text-sm uppercase tracking-wider focus:outline-none focus:border-primary"
+                                />
+                                <button
+                                    onClick={handleApplyOffer}
+                                    disabled={validatingOffer}
+                                    className="px-6 py-3 bg-primary text-secondary rounded-xl font-black text-xs uppercase tracking-widest hover:bg-primary-dark transition-all disabled:opacity-50"
+                                >
+                                    {validatingOffer ? 'Checking...' : 'Apply'}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                        <FaTag />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-green-700 text-sm uppercase">{appliedOffer.code}</p>
+                                        <p className="text-xs text-green-600 font-bold">You saved ₹{appliedOffer.discount}!</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleRemoveOffer}
+                                    className="w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-200 transition-all"
+                                >
+                                    <FaTimes size={14} />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex gap-4">

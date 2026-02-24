@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { MdShoppingCart, MdPerson, MdPayment, MdLocalShipping, MdRestaurant, MdSearch } from 'react-icons/md';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const OrdersTracking = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -16,7 +18,7 @@ const OrdersTracking = () => {
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const response = await fetch('http://localhost:5000/api/billing', {
+            const response = await fetch(`${API_URL}/api/billing`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }

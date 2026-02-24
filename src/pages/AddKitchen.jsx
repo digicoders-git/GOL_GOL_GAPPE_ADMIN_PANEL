@@ -43,7 +43,7 @@ const AddKitchen = () => {
     useEffect(() => {
         const fetchAdmins = async () => {
             try {
-                const response = await fetch(`${API_URL}/admins`, {
+                const response = await fetch(`${API_URL}/api/admins`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }

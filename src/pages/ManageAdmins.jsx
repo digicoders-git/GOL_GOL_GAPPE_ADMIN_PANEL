@@ -19,7 +19,7 @@ const ManageAdmins = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`${API_URL}/admins`, {
+            const response = await fetch(`${API_URL}/api/admins`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
@@ -42,7 +42,7 @@ const ManageAdmins = () => {
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch(`${API_URL}/auth/register`, {
+            const response = await fetch(`${API_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ const ManageAdmins = () => {
 
         if (result.isConfirmed) {
             try {
-                const response = await fetch(`${API_URL}/users/${id}`, {
+                const response = await fetch(`${API_URL}/api/users/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`

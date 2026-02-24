@@ -56,14 +56,14 @@ const BillingManagement = () => {
 
             if (role === 'billing_admin') {
                 // Billing admin sees only their kitchen's orders
-                billRes = await fetch(`${API_URL}/billing-admin/my-kitchen/orders`, {
+                billRes = await fetch(`${API_URL}/api/billing-admin/my-kitchen/orders`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 const data = await billRes.json();
                 billRes = { data: { success: data.success, bills: data.orders || [] } };
 
                 // Get their kitchen
-                kitchenRes = await fetch(`${API_URL}/billing-admin/my-kitchen`, {
+                kitchenRes = await fetch(`${API_URL}/api/billing-admin/my-kitchen`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 const kitchenData = await kitchenRes.json();

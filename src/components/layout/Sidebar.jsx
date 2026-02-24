@@ -15,7 +15,8 @@ import {
     UtensilsCrossed,
     Users,
     ShoppingCart,
-    Activity
+    Activity,
+    Tag
 } from 'lucide-react';
 import { FaHome, FaUtensils, FaHistory, FaUser } from 'react-icons/fa';
 import logo from '../../assets/logo.jpeg';
@@ -40,6 +41,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             { name: 'Transfer Stock', icon: <ArrowLeftRight size={20} />, path: '/product-assign' },
             { name: 'All Customers', icon: <Users size={20} />, path: '/users' },
             { name: 'Orders Tracking', icon: <ShoppingCart size={20} />, path: '/orders' },
+            { name: 'Manage Offers', icon: <Tag size={20} />, path: '/offers' },
             
             
             { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },

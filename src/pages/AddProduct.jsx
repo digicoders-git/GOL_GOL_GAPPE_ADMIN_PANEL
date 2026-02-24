@@ -450,30 +450,6 @@ const AddProduct = () => {
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">GST %</label>
-                                            <input
-                                                type="text"
-                                                className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
-                                                value={formData.gstPercent}
-                                                onChange={(e) => setFormData({ ...formData, gstPercent: e.target.value })}
-                                            />
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Packaging Charge</label>
-                                            <div className="relative">
-                                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 font-bold">₹</div>
-                                                <input
-                                                    type="text"
-                                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
-                                                    value={formData.packagingCharge}
-                                                    onChange={(e) => setFormData({ ...formData, packagingCharge: e.target.value })}
-                                                    placeholder="0.00"
-                                                />
-                                            </div>
-                                        </div>
-
                                         <div className="flex items-center gap-4 p-4 bg-zinc-50 rounded-xl md:col-span-2">
                                             <div className="flex-1">
                                                 <p className="text-xs font-black text-secondary uppercase tracking-tight">Service Charge Applicable?</p>
@@ -508,18 +484,9 @@ const AddProduct = () => {
                                                         <span>Base Rate</span>
                                                         <span className="text-white">₹{priceDetails.basePrice.toFixed(2)}</span>
                                                     </div>
-                                                    <div className="flex justify-between">
-                                                        <span>GST ({formData.gstPercent}%)</span>
-                                                        <span className="text-white">₹{priceDetails.gstAmount.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span>Service Fee</span>
-                                                        <span className="text-white">₹{priceDetails.serviceCharge.toFixed(2)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span>Packaging</span>
-                                                        <span className="text-white">₹{priceDetails.packaging.toFixed(2)}</span>
-                                                    </div>
+                                                    
+                                                   
+                                                    
                                                 </div>
 
                                                 <div className="pt-3 border-t border-white/10 flex justify-between items-end">

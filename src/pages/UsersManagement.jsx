@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { MdPeople, MdEmail, MdPhone, MdCalendarToday, MdViewModule, MdViewList } from 'react-icons/md';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const UsersManagement = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -17,7 +19,7 @@ const UsersManagement = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await fetch('http://localhost:5000/api/users', {
+            const response = await fetch(`${API_URL}/users`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
@@ -89,9 +91,9 @@ const UsersManagement = () => {
                             </div>
 
                             <div className="space-y-2">
-                                {user.phone && (
+                                {user.mobile && (
                                     <div className="flex items-center gap-2 text-xs text-secondary">
-                                        <MdPhone className="text-primary/40" /> {user.phone}
+                                        <MdPhone className="text-primary/40" /> {user.mobile}
                                     </div>
                                 )}
                                 <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -126,7 +128,7 @@ const UsersManagement = () => {
                                                 <span className="font-bold text-secondary">{user.name || 'User'}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-secondary">{user.phone || '-'}</td>
+                                        <td className="px-6 py-4 text-sm text-secondary">{user.mobile || '-'}</td>
                                         <td className="px-6 py-4 text-sm text-zinc-500">{new Date(user.createdAt).toLocaleDateString()}</td>
                                     </tr>
                                 ))}
