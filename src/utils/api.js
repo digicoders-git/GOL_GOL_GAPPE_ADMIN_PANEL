@@ -53,6 +53,7 @@ export const addQuantity = (data) => api.post('/products/add-quantity', data);
 export const transferStock = (data) => api.post('/products/transfer', data);
 export const getTransferHistory = () => api.get('/products/transfer-history');
 export const getStockLogs = () => api.get('/products/stock-logs');
+export const deleteStockLog = (id) => api.delete(`/products/stock-logs/${id}`);
 export const deleteProduct = (id) => api.delete(`/products/${id}`);
 export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
 

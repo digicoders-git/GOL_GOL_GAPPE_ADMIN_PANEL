@@ -127,8 +127,22 @@ const AddProduct = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!formData.name || !formData.price || !formData.category) {
-            toast.error('Please fill required fields (Name, Price, Category)');
+        
+        // Validation
+        if (!formData.name?.trim()) {
+            toast.error('Product name is required');
+            return;
+        }
+        if (!formData.price || Number(formData.price) <= 0) {
+            toast.error('Valid price is required');
+            return;
+        }
+        if (!formData.category?.trim()) {
+            toast.error('Category is required');
+            return;
+        }
+        if (formData.discountPrice && Number(formData.discountPrice) >= Number(formData.price)) {
+            toast.error('Discount price must be less than selling price');
             return;
         }
 
@@ -340,7 +354,7 @@ const AddProduct = () => {
                                                 <MdInventory className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" />
                                                 <input
                                                     type="text"
-                                                    required
+                                                   required
                                                     className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
                                                     value={formData.name}
                                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -350,9 +364,10 @@ const AddProduct = () => {
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Short Name</label>
+                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Short Name *</label>
                                             <input
                                                 type="text"
+                                                required
                                                 className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
                                                 value={formData.shortName}
                                                 onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
@@ -376,9 +391,10 @@ const AddProduct = () => {
                                         </div>
 
                                         <div className="md:col-span-2 space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Description</label>
+                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Description *</label>
                                             <textarea
                                                 rows="2"
+                                                required
                                                 className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm resize-none"
                                                 value={formData.description}
                                                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -401,9 +417,10 @@ const AddProduct = () => {
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Cuisine Type (Comma separated)</label>
+                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Cuisine Type *</label>
                                             <input
                                                 type="text"
+                                                required
                                                 className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
                                                 value={formData.cuisineType}
                                                 onChange={(e) => setFormData({ ...formData, cuisineType: e.target.value })}

@@ -270,7 +270,7 @@ const ProductQuantity = () => {
                 try {
                     const response = await deleteProduct(id);
                     if (response.data.success) {
-                        setInventory(inventory.filter(p => p.id !== id));
+                        await fetchProducts();
                         Swal.fire({
                             title: 'Deleted!',
                             text: 'Product has been removed.',
@@ -299,7 +299,7 @@ const ProductQuantity = () => {
                 minStock: editingProduct.minStock
             });
             if (response.data.success) {
-                setInventory(inventory.map(p => p.id === editingProduct.id ? editingProduct : p));
+                await fetchProducts();
                 setIsEditModalOpen(false);
                 toast.success('Stock updated successfully');
             }

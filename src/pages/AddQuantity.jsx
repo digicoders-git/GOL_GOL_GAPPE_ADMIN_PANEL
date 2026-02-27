@@ -20,7 +20,7 @@ import {
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { getStockLogs, addQuantity, getProducts } from '../utils/api';
+import { getStockLogs, addQuantity, getProducts, deleteStockLog } from '../utils/api';
 
 const AddQuantity = () => {
     const [recentEntries, setRecentEntries] = useState([]);
@@ -138,7 +138,7 @@ const AddQuantity = () => {
         }
     };
 
-    const deleteEntry = (id) => {
+    const deleteEntry = async (id) => {
         Swal.fire({
             title: 'Delete Log?',
             text: "This record will be permanently removed.",
@@ -153,19 +153,26 @@ const AddQuantity = () => {
                 confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-sm',
                 cancelButton: 'px-6 py-2.5 rounded-xl font-bold text-sm'
             }
-        }).then((result) => {
+        }).then(async (result) => {
             if (result.isConfirmed) {
-                setRecentEntries(recentEntries.filter(e => e.id !== id));
-                Swal.fire({
-                    title: 'Deleted!',
-                    text: 'Entry has been removed.',
-                    icon: 'success',
-                    confirmButtonColor: '#10b981',
-                    customClass: {
-                        popup: 'rounded-[2rem]',
-                        confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-sm'
+                try {
+                    const response = await deleteStockLog(id);
+                    if (response.data.success) {
+                        await fetchData();
+                        Swal.fire({
+                            title: 'Deleted!',
+                            text: 'Entry has been removed.',
+                            icon: 'success',
+                            confirmButtonColor: '#10b981',
+                            customClass: {
+                                popup: 'rounded-[2rem]',
+                                confirmButton: 'px-6 py-2.5 rounded-xl font-bold text-sm'
+                            }
+                        });
                     }
-                });
+                } catch (error) {
+                    toast.error('Failed to delete entry');
+                }
             }
         });
     };
