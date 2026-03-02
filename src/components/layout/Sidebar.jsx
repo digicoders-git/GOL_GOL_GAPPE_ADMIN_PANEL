@@ -70,9 +70,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         ]
     };
 
-    const commonItems = [
-        { name: 'Change Password', icon: <KeyRound size={20} />, path: '/change-password' },
-    ];
+    const commonItems = [];
 
     const menuItems = [...(allMenuItems[role] || allMenuItems.super_admin), ...commonItems];
 

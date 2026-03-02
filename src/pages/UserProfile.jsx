@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaUser, FaPhone, FaEnvelope, FaEdit, FaSave, FaCamera, FaKey } from 'react-icons/fa';
+import { FaUser, FaPhone, FaEdit, FaSave, FaCamera } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { updateProfile } from '../utils/api';
 
 const UserProfile = () => {
     const [user, setUser] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
-        email: '',
         mobile: ''
     });
     const navigate = useNavigate();
@@ -24,7 +24,6 @@ const UserProfile = () => {
         setUser(userData);
         setFormData({
             name: userData.name || '',
-            email: userData.email || '',
             mobile: userData.mobile || ''
         });
     }, [navigate]);
@@ -32,17 +31,16 @@ const UserProfile = () => {
     const handleUpdate = async (e) => {
         e.preventDefault();
         try {
-            // Ideally call an API here
-            // const response = await updateProfile(formData);
-
-            // For now, updating local storage (mock update)
-            const updatedUser = { ...user, ...formData };
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-            setUser(updatedUser);
-            setIsEditing(false);
-            toast.success('Profile updated successfully!');
+            const response = await updateProfile(formData);
+            if (response.data.success) {
+                const updatedUser = response.data.user;
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+                setIsEditing(false);
+                toast.success('Profile updated successfully!');
+            }
         } catch (error) {
-            toast.error('Failed to update profile');
+            toast.error(error.response?.data?.message || 'Failed to update profile');
         }
     };
 
@@ -95,20 +93,6 @@ const UserProfile = () => {
                                     />
                                 </div>
                             </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[9px] font-black text-secondary/30 uppercase tracking-widest ml-1">Email Address</label>
-                                <div className="relative">
-                                    <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary/20" />
-                                    <input
-                                        disabled={!isEditing}
-                                        type="email"
-                                        className="w-full bg-secondary/5 border border-transparent rounded-2xl py-3.5 pl-12 pr-4 text-sm font-black text-secondary outline-none focus:bg-white focus:border-primary transition-all disabled:opacity-70"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    />
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -129,26 +113,6 @@ const UserProfile = () => {
                                         value={formData.mobile}
                                         onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
                                     />
-                                </div>
-                            </div>
-
-                            <div className="pt-6">
-                                <div className="bg-secondary/5 p-6 rounded-3xl border border-secondary/10 space-y-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-secondary shadow-sm">
-                                            <FaKey size={16} />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-secondary uppercase tracking-tight">Account Security</p>
-                                            <p className="text-[9px] font-bold text-secondary/40 uppercase tracking-widest">Update your login password</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => navigate('/change-password')}
-                                        className="w-full py-2.5 bg-white text-secondary font-black text-[9px] border border-secondary/10 rounded-xl hover:bg-secondary hover:text-white transition-all uppercase tracking-widest"
-                                    >
-                                        Change Password
-                                    </button>
                                 </div>
                             </div>
                         </div>

@@ -43,6 +43,7 @@ export const changePassword = (data) => api.post('/auth/change-password', data);
 export const getUsers = () => api.get('/auth/users');
 export const registerUser = (data) => api.post('/auth/register', data);
 export const deleteUser = (id) => api.delete(`/auth/users/${id}`);
+export const updateProfile = (data) => api.put('/auth/profile', data);
 
 // Product/Inventory APIs
 export const getProducts = () => api.get('/products');
