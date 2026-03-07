@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaUser, FaPhone, FaEdit, FaSave, FaCamera } from 'react-icons/fa';
+import { FaUser, FaPhone, FaEdit, FaSave, FaCamera, FaEnvelope, FaMapMarkerAlt } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { updateProfile } from '../utils/api';
@@ -10,9 +10,23 @@ const UserProfile = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
-        mobile: ''
+        mobile: '',
+        email: '',
+        profilePic: '',
+        address: ''
     });
     const navigate = useNavigate();
+
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFormData({ ...formData, profilePic: reader.result });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -24,7 +38,10 @@ const UserProfile = () => {
         setUser(userData);
         setFormData({
             name: userData.name || '',
-            mobile: userData.mobile || ''
+            mobile: userData.mobile || '',
+            email: userData.email || '',
+            profilePic: userData.profilePic || '',
+            address: userData.address || ''
         });
     }, [navigate]);
 
@@ -56,11 +73,27 @@ const UserProfile = () => {
                 <div className="absolute -bottom-16 left-1/2 -translate-x-1/2">
                     <div className="relative group">
                         <div className="w-32 h-32 rounded-3xl bg-white p-1 shadow-2xl overflow-hidden border-4 border-white">
-                            <div className="w-full h-full bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-                                <FaUser size={60} />
-                            </div>
+                            {formData.profilePic ? (
+                                <img src={formData.profilePic} alt="Profile" className="w-full h-full rounded-2xl object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                                    <FaUser size={60} />
+                                </div>
+                            )}
                         </div>
-                        <button className="absolute bottom-2 right-2 p-2.5 bg-secondary text-primary rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all">
+                        <input
+                            type="file"
+                            id="profilePicInput"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => isEditing && document.getElementById('profilePicInput').click()}
+                            disabled={!isEditing}
+                            className="absolute bottom-2 right-2 p-2.5 bg-secondary text-primary rounded-xl shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        >
                             <FaCamera size={14} />
                         </button>
                     </div>
@@ -112,6 +145,34 @@ const UserProfile = () => {
                                         className="w-full bg-secondary/5 border border-transparent rounded-2xl py-3.5 pl-12 pr-4 text-sm font-black text-secondary outline-none focus:bg-white focus:border-primary transition-all disabled:opacity-70"
                                         value={formData.mobile}
                                         onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black text-secondary/30 uppercase tracking-widest ml-1">Email Address</label>
+                                <div className="relative">
+                                    <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary/20" />
+                                    <input
+                                        disabled={!isEditing}
+                                        type="email"
+                                        className="w-full bg-secondary/5 border border-transparent rounded-2xl py-3.5 pl-12 pr-4 text-sm font-black text-secondary outline-none focus:bg-white focus:border-primary transition-all disabled:opacity-70"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black text-secondary/30 uppercase tracking-widest ml-1">Address</label>
+                                <div className="relative">
+                                    <FaMapMarkerAlt className="absolute left-4 top-4 text-secondary/20" />
+                                    <textarea
+                                        disabled={!isEditing}
+                                        className="w-full bg-secondary/5 border border-transparent rounded-2xl py-3.5 pl-12 pr-4 text-sm font-black text-secondary outline-none focus:bg-white focus:border-primary transition-all disabled:opacity-70 resize-none"
+                                        value={formData.address}
+                                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                        rows="3"
                                     />
                                 </div>
                             </div>
