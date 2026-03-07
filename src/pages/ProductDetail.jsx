@@ -239,7 +239,8 @@ const ProductDetail = () => {
             const itemTotal = product.price * quantity;
             const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/offers/validate`, {
                 code: offerCode.toUpperCase(),
-                orderAmount: itemTotal
+                orderAmount: itemTotal,
+                productId: product._id
             });
 
             if (response.data.success) {
