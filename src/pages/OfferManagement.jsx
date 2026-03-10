@@ -5,13 +5,38 @@ import toast from 'react-hot-toast';
 
 const OfferManagement = () => {
     const [offers, setOffers] = useState([]);
+    const [products, setProducts] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editingOffer, setEditingOffer] = useState(null);
-    const [formData, setFormData] = useState({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true });
+    const [formData, setFormData] = useState({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true, productId: '' });
 
     useEffect(() => {
         fetchOffers();
+        fetchProducts();
     }, []);
+
+    const fetchProducts = async () => {
+        try {
+            const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/products`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setProducts(data.products || []);
+        } catch (error) {
+            console.error('Failed to fetch products');
+        }
+    };
+
+    const handleProductSelect = (productId) => {
+        const product = products.find(p => p._id === productId);
+        if (product) {
+            setFormData({ 
+                ...formData, 
+                productId,
+                title: formData.title || product.name,
+                image: product.thumbnail || product.images?.[0] || formData.image
+            });
+        }
+    };
 
     const fetchOffers = async () => {
         try {
@@ -72,7 +97,8 @@ const OfferManagement = () => {
             maxUses: offer.maxUses,
             minOrderAmount: offer.minOrderAmount,
             expiryDate: offer.expiryDate?.split('T')[0] || '',
-            isActive: offer.isActive 
+            isActive: offer.isActive,
+            productId: offer.productId || ''
         });
         setShowModal(true);
     };
@@ -81,7 +107,7 @@ const OfferManagement = () => {
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold">Offer Management</h1>
-                <button onClick={() => { setShowModal(true); setEditingOffer(null); setFormData({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true }); }} className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <button onClick={() => { setShowModal(true); setEditingOffer(null); setFormData({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true, productId: '' }); }} className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
                     <Plus size={20} /> Add Offer
                 </button>
             </div>
@@ -123,6 +149,15 @@ const OfferManagement = () => {
                         <h2 className="text-2xl font-bold mb-4">{editingOffer ? 'Edit Offer' : 'Add Offer'}</h2>
                         <form onSubmit={handleSubmit}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Select Product (Optional)</label>
+                                    <select value={formData.productId} onChange={(e) => handleProductSelect(e.target.value)} className="w-full border rounded-lg px-3 py-2">
+                                        <option value="">-- Select Product --</option>
+                                        {products.map(p => (
+                                            <option key={p._id} value={p._id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Title</label>
                                     <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
