@@ -34,6 +34,12 @@ const BillingAdminDashboard = lazy(() => import('./pages/BillingAdminDashboard')
 const KitchenAdminDashboard = lazy(() => import('./pages/KitchenAdminDashboard'));
 const KitchenStockMonitor = lazy(() => import('./pages/KitchenStockMonitor'));
 const OfferManagement = lazy(() => import('./pages/OfferManagement'));
+const DebugProducts = lazy(() => import('./pages/DebugProducts'));
+const ApiTest = lazy(() => import('./pages/ApiTest'));
+const QuickTest = lazy(() => import('./pages/QuickTest'));
+const DirectTest = lazy(() => import('./pages/DirectTest'));
+const ConnectionTest = lazy(() => import('./pages/ConnectionTest'));
+const ProductsTest = lazy(() => import('./pages/ProductsTest'));
 
 function App() {
   return (
@@ -84,6 +90,12 @@ function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="users" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><UsersManagement /></ProtectedRoute>} />
             <Route path="orders" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><OrdersTracking /></ProtectedRoute>} />
+            <Route path="debug-products" element={<DebugProducts />} />
+            <Route path="api-test" element={<ApiTest />} />
+            <Route path="quick-test" element={<QuickTest />} />
+            <Route path="direct-test" element={<DirectTest />} />
+            <Route path="connection-test" element={<ConnectionTest />} />
+            <Route path="products-test" element={<ProductsTest />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/user-login" replace />} />

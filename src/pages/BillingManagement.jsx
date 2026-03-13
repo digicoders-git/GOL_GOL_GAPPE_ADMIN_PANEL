@@ -30,7 +30,7 @@ import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { FaUtensils } from 'react-icons/fa';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const BillingManagement = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -78,15 +78,15 @@ const BillingManagement = () => {
             if (billRes.data.success) {
                 const mappedBills = billRes.data.bills.map(b => ({
                     _id: b._id,
-                    id: b.billNumber,
-                    customer: b.customer?.name || 'Walk-in Customer',
+                    id: b.billNumber || b.orderNumber || '000000',
+                    customer: b.customer?.name || (typeof b.customer === 'string' ? b.customer : 'Walk-in Customer'),
                     amount: b.totalAmount,
-                    date: new Date(b.createdAt).toLocaleDateString('en-IN'),
-                    time: new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                    status: b.status.charAt(0).toUpperCase() + b.status.slice(1).replace(/_/g, ' '),
-                    method: b.paymentMethod,
-                    items: b.items,
-                    rawStatus: b.status,
+                    date: b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-IN') : 'Recently',
+                    time: b.createdAt ? new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '',
+                    status: (b.status || 'Pending').charAt(0).toUpperCase() + (b.status || 'Pending').slice(1).replace(/_/g, ' '),
+                    method: b.paymentMethod || 'Other',
+                    items: b.items || [],
+                    rawStatus: b.status || 'Pending',
                     kitchen: b.kitchen
                 }));
                 setTransactions(mappedBills);
@@ -278,8 +278,12 @@ const BillingManagement = () => {
     };
     const filteredTransactions = useMemo(() => {
         return transactions.filter(t => {
-            const matchesSearch = t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.customer.toLowerCase().includes(searchQuery.toLowerCase());
+            const billId = (t.id || '').toString();
+            const customerName = (t.customer || '').toString();
+            const search = (searchQuery || '').toLowerCase();
+
+            const matchesSearch = billId.toLowerCase().includes(search) ||
+                customerName.toLowerCase().includes(search);
             const matchesStatus = statusFilter === 'All' || t.status === statusFilter;
             return matchesSearch && matchesStatus;
         });

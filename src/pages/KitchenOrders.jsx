@@ -1,26 +1,47 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MdRestaurant, MdTimer, MdCheckCircle, MdSearch, MdChevronRight, MdLocalFireDepartment, MdUpdate, MdPrint, MdViewModule, MdViewList } from 'react-icons/md';
-import { getKitchenOrders, updateBillStatus } from '../utils/api';
+import { getKitchenOrders, getAllOrders, updateBillStatus, updateOrderStatus } from '../utils/api';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 
 const KitchenOrders = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('All');
+    const [filter, setFilter] = useState('Assigned_to_Kitchen');
     const [viewMode, setViewMode] = useState('cards');
 
     const fetchOrders = async () => {
         try {
             setLoading(true);
             const response = await getKitchenOrders();
-            if (response.data.success) {
-                setOrders(response.data.bills || []);
+            console.log('Kitchen API Response:', response.data);
+            const allOrders = (response.data.bills || []).map(o => ({
+                ...o,
+                // The backend already sets type ('BILL' or 'ORDER'), normalize to 'POS'/'ONLINE'
+                type: o.type === 'BILL' ? 'POS' : 'ONLINE',
+                displayId: o.billNumber || o.orderNumber || '000000'
+            }));
+            console.log('Processed Orders:', allOrders);
+
+            const combined = allOrders.map(o => ({
+                ...o,
+                // Normalize status: replace underscores with spaces, capitalize first letters, then back to underscored format for internal filtering
+                // Or just handle specific case mappings
+                status: o.status === 'assigned_to_kitchen' ? 'Assigned_to_Kitchen' : 
+                        o.status === 'preparing' ? 'Processing' : o.status
+            })).sort((a, b) => 
+                new Date(b.createdAt) - new Date(a.createdAt)
+            );
+
+            if (response.data.message && allOrders.length === 0) {
+                toast(response.data.message, { icon: 'ℹ️' });
             }
+            setOrders(combined);
         } catch (error) {
             console.error('Fetch orders error:', error);
-            toast.error('Failed to load kitchen orders');
+            const msg = error.response?.data?.message || 'Failed to load kitchen orders';
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
@@ -30,9 +51,10 @@ const KitchenOrders = () => {
         fetchOrders();
     }, []);
 
-    const handleStatusUpdate = async (id, newStatus) => {
+    const handleStatusUpdate = async (order, newStatus) => {
         try {
-            const response = await updateBillStatus(id, newStatus);
+            const updateFn = order.type === 'POS' ? updateBillStatus : updateOrderStatus;
+            const response = await updateFn(order._id, newStatus);
             if (response.data.success) {
                 toast.success(`Order set to ${newStatus.replace(/_/g, ' ')}`);
                 fetchOrders();
@@ -110,8 +132,13 @@ const KitchenOrders = () => {
                         >
                             <div className="p-6 bg-zinc-50/50 border-b border-zinc-100 flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <h3 className="font-black text-secondary text-lg leading-none">#{order.billNumber.slice(-6)}</h3>
-                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{new Date(order.createdAt).toLocaleTimeString()}</p>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-black text-secondary text-lg leading-none">#{order.displayId?.toString().slice(-6)}</h3>
+                                        <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase ${order.type === 'ONLINE' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                            {order.type}
+                                        </span>
+                                    </div>
+                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : 'Recently'}</p>
                                 </div>
                                 <div className="flex gap-2">
                                     <button className="p-2 hover:bg-zinc-100 rounded-lg text-zinc-400 transition-colors">
@@ -123,7 +150,7 @@ const KitchenOrders = () => {
                             <div className="p-6 flex-1 space-y-4">
                                 {/* Items List */}
                                 <div className="space-y-3">
-                                    {order.items.map((item, idx) => (
+                                    {(order.items || []).map((item, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl border border-zinc-100">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-lg bg-white border border-zinc-100 flex items-center justify-center font-black text-secondary text-xs">
@@ -146,7 +173,7 @@ const KitchenOrders = () => {
                             <div className="p-6 pt-0">
                                 {filter === 'Assigned_to_Kitchen' && (
                                     <button
-                                        onClick={() => handleStatusUpdate(order._id, 'Processing')}
+                                        onClick={() => handleStatusUpdate(order, 'Processing')}
                                         className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2 group cursor-pointer"
                                     >
                                         <MdTimer size={18} className="group-hover:rotate-45 transition-transform" />
@@ -155,7 +182,7 @@ const KitchenOrders = () => {
                                 )}
                                 {filter === 'Processing' && (
                                     <button
-                                        onClick={() => handleStatusUpdate(order._id, 'Ready')}
+                                        onClick={() => handleStatusUpdate(order, 'Ready')}
                                         className="w-full py-4 bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 group cursor-pointer"
                                     >
                                         <MdUpdate size={18} className="animate-pulse" />
@@ -164,7 +191,7 @@ const KitchenOrders = () => {
                                 )}
                                 {filter === 'Ready' && (
                                     <button
-                                        onClick={() => handleStatusUpdate(order._id, 'Completed')}
+                                        onClick={() => handleStatusUpdate(order, 'Completed')}
                                         className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                                     >
                                         <MdCheckCircle size={18} />
@@ -192,9 +219,14 @@ const KitchenOrders = () => {
                             {activeOrders.map((order) => (
                                 <tr key={order._id} className="hover:bg-zinc-50">
                                     <td className="px-6 py-4">
-                                        <div>
-                                            <p className="font-black text-secondary">#{order.billNumber}</p>
-                                            <p className="text-xs text-zinc-500">{new Date(order.createdAt).toLocaleTimeString()}</p>
+                                        <div className="flex items-center gap-2">
+                                            <div>
+                                                <p className="font-black text-secondary">#{order.displayId}</p>
+                                                <p className="text-xs text-zinc-500">{order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : 'Recently'}</p>
+                                            </div>
+                                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${order.type === 'ONLINE' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                {order.type}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm font-bold text-secondary">{order.customer?.name || 'Walk-in'}</td>
@@ -206,13 +238,13 @@ const KitchenOrders = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         {order.status === 'Assigned_to_Kitchen' && (
-                                            <button onClick={() => handleStatusUpdate(order._id, 'Processing')} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600">Start</button>
+                                            <button onClick={() => handleStatusUpdate(order, 'Processing')} className="px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600">Start</button>
                                         )}
                                         {order.status === 'Processing' && (
-                                            <button onClick={() => handleStatusUpdate(order._id, 'Ready')} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold hover:bg-blue-600">Ready</button>
+                                            <button onClick={() => handleStatusUpdate(order, 'Ready')} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold hover:bg-blue-600">Ready</button>
                                         )}
                                         {order.status === 'Ready' && (
-                                            <button onClick={() => handleStatusUpdate(order._id, 'Completed')} className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600">Serve</button>
+                                            <button onClick={() => handleStatusUpdate(order, 'Completed')} className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600">Serve</button>
                                         )}
                                         {order.status === 'Completed' && (
                                             <span className="text-xs text-green-600 font-bold">Done</span>

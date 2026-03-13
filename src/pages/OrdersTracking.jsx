@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { MdShoppingCart, MdPerson, MdPayment, MdLocalShipping, MdRestaurant, MdSearch } from 'react-icons/md';
 import toast from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const OrdersTracking = () => {
     const [orders, setOrders] = useState([]);

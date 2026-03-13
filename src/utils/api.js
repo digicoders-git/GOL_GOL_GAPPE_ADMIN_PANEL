@@ -1,11 +1,20 @@
 import axios from 'axios';
 
 // Use production backend URL if available, otherwise localhost
-const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 const API_BASE_URL = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+
+console.log('Environment:', import.meta.env.MODE);
+console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+console.log('Base URL:', baseUrl);
+console.log('Final API Base URL:', API_BASE_URL);
 
 const api = axios.create({
     baseURL: API_BASE_URL,
+    timeout: 30000,
+    headers: {
+        'Content-Type': 'application/json'
+    }
 });
 // Add request interceptor to include auth token
 api.interceptors.request.use(
@@ -37,6 +46,8 @@ api.interceptors.response.use(
 // Auth APIs
 export const login = (credentials) => api.post('/auth/login', credentials);
 export const otpLogin = (data) => api.post('/auth/otp-login', data);
+export const directLogin = (data) => api.post('/auth/direct-login', data);
+export const directRegister = (data) => api.post('/auth/direct-register', data);
 export const sendOtp = (data) => api.post('/auth/send-otp', data);
 export const getProfile = () => api.get('/auth/profile');
 export const changePassword = (data) => api.post('/auth/change-password', data);
@@ -66,12 +77,22 @@ export const deleteKitchen = (id) => api.delete(`/kitchens/${id}`);
 export const getKitchenInventory = (id) => api.get(`/kitchens/${id}/inventory`);
 
 // Billing APIs
-export const getBills = () => api.get('/billing');
+export const getBills = (page = 1, limit = 20) => api.get(`/billing?page=${page}&limit=${limit}`);
 export const getUserOrders = () => api.get('/billing/my-orders');
 export const getKitchenOrders = () => api.get('/billing/kitchen-orders');
+export const getAllOrders = () => api.get('/orders');
 export const createBill = (data) => api.post('/billing', data);
 export const updateBill = (id, data) => api.put(`/billing/${id}`, data);
 export const updateBillStatus = (id, status) => api.patch(`/billing/${id}/status`, { status });
+export const updateOrderStatus = (id, status) => api.patch(`/orders/${id}/status`, { status });
 export const deleteBill = (id) => api.delete(`/billing/${id}`);
-
 export default api;
+export const getOffers = () => api.get('/offers');
+export const getActiveOffers = () => api.get('/offers/active');
+export const createOffer = (data) => api.post('/offers', data);
+export const updateOffer = (id, data) => api.put(`/offers/${id}`, data);
+export const deleteOffer = (id) => api.delete(`/offers/${id}`);
+export const validateOffer = (data) => api.post('/offers/validate', data);
+export const applyOffer = (data) => api.post('/offers/apply', data);
+
+

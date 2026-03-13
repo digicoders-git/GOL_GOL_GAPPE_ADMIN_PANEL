@@ -234,7 +234,8 @@ const MyInventory = () => {
 
                                 // Find transfer history for this product
                                 const productTransfers = transfers.filter(
-                                    t => t.product?._id === item.product?._id || t.product === item.product?._id
+                                    t => t.product?._id?.toString() === item.product?._id?.toString() || 
+                                         t.product?.toString() === item.product?._id?.toString()
                                 );
                                 const initialQty = productTransfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
                                 const usedQty = initialQty - item.quantity;

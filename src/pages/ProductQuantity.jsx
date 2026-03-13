@@ -48,7 +48,8 @@ const ProductQuantity = () => {
         try {
             setLoading(true);
             const response = await getProducts();
-            if (response.data.success) {
+            
+            if (response?.data?.success && Array.isArray(response.data.products)) {
                 const mappedProducts = response.data.products.map(p => ({
                     id: p._id,
                     name: p.name || 'Unknown Product',
@@ -59,10 +60,12 @@ const ProductQuantity = () => {
                     lastUpdated: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-IN') : 'N/A'
                 }));
                 setInventory(mappedProducts);
+            } else {
+                setInventory([]);
             }
         } catch (error) {
             console.error('Error fetching products:', error);
-            toast.error('Failed to load inventory');
+            setInventory([]);
         } finally {
             setLoading(false);
         }
@@ -412,7 +415,31 @@ const ProductQuantity = () => {
                         </thead>
                         <tbody className="divide-y divide-zinc-50">
                             <AnimatePresence mode='popLayout'>
-                                {filteredInventory.map((item) => {
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-5 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                                <p className="text-sm font-bold text-zinc-400">Loading products...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : filteredInventory.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="5" className="px-5 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <p className="text-lg font-bold text-zinc-400">No products found</p>
+                                                <p className="text-sm text-zinc-300">Total inventory: {inventory.length} items</p>
+                                                <button 
+                                                    onClick={fetchProducts}
+                                                    className="bg-primary text-secondary px-4 py-2 rounded-lg font-bold text-sm"
+                                                >
+                                                    Refresh
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : filteredInventory.map((item) => {
                                     const status = getStockStatus(item.stock, item.minStock);
                                     return (
                                         <motion.tr

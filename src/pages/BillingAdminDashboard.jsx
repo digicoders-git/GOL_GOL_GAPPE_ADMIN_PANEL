@@ -19,12 +19,12 @@ const BillingAdminDashboard = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            
+
             const kitchenRes = await fetch(`${API_URL}/billing-admin/my-kitchen`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const kitchenData = await kitchenRes.json();
-            
+
             if (kitchenData.success) {
                 setKitchen(kitchenData.kitchen);
             }
@@ -168,11 +168,10 @@ const BillingAdminDashboard = () => {
                             </div>
                             <div className="text-right">
                                 <p className="font-bold text-secondary">₹{order.totalAmount}</p>
-                                <span className={`text-xs px-2 py-1 rounded-lg ${
-                                    order.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                                <span className={`text-xs px-2 py-1 rounded-lg ${order.status === 'Completed' ? 'bg-green-100 text-green-700' :
                                     order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-blue-100 text-blue-700'
-                                }`}>
+                                        'bg-blue-100 text-blue-700'
+                                    }`}>
                                     {order.status}
                                 </span>
                             </div>

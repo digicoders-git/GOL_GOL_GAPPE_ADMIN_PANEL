@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { MdPeople, MdEmail, MdPhone, MdCalendarToday, MdViewModule, MdViewList } from 'react-icons/md';
 import toast from 'react-hot-toast';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { getUsers } from '../utils/api';
 
 const UsersManagement = () => {
     const [users, setUsers] = useState([]);
@@ -19,14 +18,9 @@ const UsersManagement = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`${API_URL}/users`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
-            const data = await response.json();
-            if (data.success) {
-                setUsers(data.users);
+            const response = await getUsers();
+            if (response.data.success) {
+                setUsers(response.data.users);
             }
         } catch (error) {
             toast.error('Failed to load users');

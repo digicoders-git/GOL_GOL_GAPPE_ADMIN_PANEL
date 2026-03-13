@@ -27,6 +27,7 @@ import {
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { getProducts, createProduct, deleteProduct, updateProduct } from '../utils/api';
+import api from '../utils/api';
 
 const AddProduct = () => {
     const [products, setProducts] = useState([]);
@@ -104,15 +105,26 @@ const AddProduct = () => {
     const fetchProducts = async () => {
         try {
             setLoading(true);
+            console.log('Fetching products...');
             const response = await getProducts();
-            if (response.data.success) {
+            console.log('Products API response:', response);
+            
+            if (response?.data?.success && Array.isArray(response.data.products)) {
+                console.log('Products found:', response.data.products.length);
                 setProducts(response.data.products);
+            } else if (Array.isArray(response?.data)) {
+                console.log('Products array found directly:', response.data.length);
+                setProducts(response.data);
+            } else {
+                console.log('No products found or invalid format');
+                setProducts([]);
             }
         } catch (error) {
             console.error('Error fetching products:', error);
-            toast.error('Failed to fetch products');
+            console.error('Error response:', error.response?.data);
+            setProducts([]);
         } finally {
-            setLoading(false);
+            setTimeout(() => setLoading(false), 100); // Small delay to prevent flicker
         }
     };
 
@@ -322,6 +334,7 @@ const AddProduct = () => {
                     <h1 className="text-3xl font-black text-secondary tracking-tight italic leading-none">
                         {isEditing ? 'Update Product' : 'Add New Product'}
                     </h1>
+                    <p className="text-zinc-500 text-[11px] font-medium">Products loaded: {products.length}</p>
                 </div>
             </div>
 
@@ -727,35 +740,48 @@ const AddProduct = () => {
                         </div>
 
                         <div className="max-h-[700px] overflow-y-auto">
-                            {filteredProducts.map((product) => (
-                                <div key={product._id} className="p-5 border-b border-zinc-50 hover:bg-zinc-50/80 transition-all group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-zinc-100 overflow-hidden shrink-0 border border-zinc-200">
-                                            {product.thumbnail ? (
-                                                <img src={product.thumbnail} alt={product.name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-zinc-400 font-black text-lg">
-                                                    {product.name?.charAt(0)}
+                            {loading ? (
+                                <div className="p-8 text-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                                    <p className="text-xs text-zinc-400 mt-2">Loading products...</p>
+                                </div>
+                            ) : filteredProducts.length > 0 ? (
+                                filteredProducts.map((product) => (
+                                    <div key={product._id} className="p-5 border-b border-zinc-50 hover:bg-zinc-50/80 transition-all group">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-zinc-100 overflow-hidden shrink-0 border border-zinc-200">
+                                                {product.thumbnail ? (
+                                                    <img src={product.thumbnail} alt={product.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-zinc-400 font-black text-lg">
+                                                        {product.name?.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-black text-secondary text-xs uppercase truncate">{product.name}</h4>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`text-[8px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded-md ${product.foodType === 'veg' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                        {product.foodType}
+                                                    </span>
+                                                    <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">{product.category}</span>
+                                                    <span className="text-[8px] font-black text-secondary">₹{product.price}</span>
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-black text-secondary text-xs uppercase truncate">{product.name}</h4>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className={`text-[8px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded-md ${product.foodType === 'veg' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                                    {product.foodType}
-                                                </span>
-                                                <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">{product.category}</span>
-                                                <span className="text-[8px] font-black text-secondary">₹{product.price}</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleEdit(product)} className="p-2 bg-blue-50 text-blue-500 rounded-lg transition-colors hover:bg-blue-100"><MdEdit size={16} /></button>
+                                                <button onClick={() => handleDelete(product._id)} className="p-2 bg-red-50 text-red-500 rounded-lg transition-colors hover:bg-red-100"><MdDelete size={16} /></button>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleEdit(product)} className="p-2 bg-blue-50 text-blue-500 rounded-lg transition-colors hover:bg-blue-100"><MdEdit size={16} /></button>
-                                            <button onClick={() => handleDelete(product._id)} className="p-2 bg-red-50 text-red-500 rounded-lg transition-colors hover:bg-red-100"><MdDelete size={16} /></button>
-                                        </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div className="p-8 text-center">
+                                    <MdInventory size={48} className="text-zinc-200 mx-auto mb-3" />
+                                    <p className="text-xs font-bold text-zinc-400 uppercase">No products found</p>
+                                    <p className="text-[10px] text-zinc-300 mt-1">Add your first product using the form</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 </div>

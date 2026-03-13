@@ -47,9 +47,11 @@ const KitchenStockMonitor = () => {
         return { total, outOfStock, lowStock, inStock };
     };
 
-    const getKitchenTransfers = (kitchenId) => {
+    const getKitchenTransfers = (kitchenAdmin) => {
+        if (!kitchenAdmin || !kitchenAdmin._id) return [];
         return transfers.filter(t => 
-            t.toUser?.kitchen?.toString() === kitchenId?.toString()
+            t.toUser?._id?.toString() === kitchenAdmin._id.toString() || 
+            t.toUser?.toString() === kitchenAdmin._id.toString()
         ).slice(0, 5);
     };
 
@@ -132,7 +134,7 @@ const KitchenStockMonitor = () => {
                         </div>
                     ) : filteredKitchens.map((kitchen, idx) => {
                         const stats = getKitchenStats(kitchen);
-                        const recentTransfers = getKitchenTransfers(kitchen._id);
+                        const recentTransfers = getKitchenTransfers(kitchen.admin);
                         const isCritical = stats.outOfStock > 0;
                         const isLow = stats.lowStock > 0 && !isCritical;
 

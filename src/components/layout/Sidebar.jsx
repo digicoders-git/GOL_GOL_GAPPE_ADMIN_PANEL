@@ -55,7 +55,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             { name: 'Reports', icon: <TrendingUp size={20} />, path: '/reports' },
         ],
         kitchen_admin: [
-            { name: 'My Kitchen', icon: <LayoutDashboard size={20} />, path: '/kitchen-dashboard' },
+            { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
             { name: 'Kitchen Orders', icon: <ChefHat size={20} />, path: '/kitchen-orders' },
             { name: 'My Stock', icon: <Boxes size={20} />, path: '/my-inventory' },
             { name: 'Stock Log', icon: <CalendarDays size={20} />, path: '/day-stock' },

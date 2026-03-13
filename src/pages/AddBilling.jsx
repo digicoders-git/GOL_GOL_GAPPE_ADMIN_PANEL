@@ -18,14 +18,14 @@ const AddBilling = () => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
-            
+
             if (data.success) {
                 const bills = data.bills || [];
-                
+
                 const totalOrders = bills.length;
                 const completed = bills.filter(b => b.status === 'Completed').length;
                 const assigned = bills.filter(b => b.status === 'Assigned_to_Kitchen').length;
-                
+
                 const itemCount = {};
                 bills.forEach(bill => {
                     bill.items?.forEach(item => {
@@ -33,10 +33,10 @@ const AddBilling = () => {
                         itemCount[name] = (itemCount[name] || 0) + item.quantity;
                     });
                 });
-                const topItem = Object.keys(itemCount).length > 0 
-                    ? Object.entries(itemCount).sort((a, b) => b[1] - a[1])[0][0] 
+                const topItem = Object.keys(itemCount).length > 0
+                    ? Object.entries(itemCount).sort((a, b) => b[1] - a[1])[0][0]
                     : 'N/A';
-                
+
                 setStats({ totalOrders, completed, assigned, topItem });
                 setOrders(bills);
             }
@@ -145,11 +145,10 @@ const AddBilling = () => {
                                             <span className="text-[10px] font-bold text-zinc-600">{order.items?.length || 0} items</span>
                                         </td>
                                         <td className="px-5 py-3.5 text-center">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${
-                                                order.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${order.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
                                                 order.status === 'Assigned_to_Kitchen' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
-                                                'bg-blue-50 text-blue-600 border border-blue-100'
-                                            }`}>
+                                                    'bg-blue-50 text-blue-600 border border-blue-100'
+                                                }`}>
                                                 {order.status === 'Completed' && <MdCheckCircle size={12} />}
                                                 {order.status === 'Assigned_to_Kitchen' && <MdRestaurant size={12} />}
                                                 {order.status || 'Pending'}

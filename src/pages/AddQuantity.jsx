@@ -43,13 +43,13 @@ const AddQuantity = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [logsRes, productsRes] = await Promise.all([
-                getStockLogs(),
-                getProducts()
+            const [logsRes, productsRes] = await Promise.allSettled([
+                getStockLogs().catch(() => ({ data: { success: true, logs: [] } })),
+                getProducts().catch(() => ({ data: { success: true, products: [] } }))
             ]);
 
-            if (logsRes.data.success) {
-                const logs = logsRes.data.logs.map(log => ({
+            if (logsRes.status === 'fulfilled' && logsRes.value.data.success) {
+                const logs = (logsRes.value.data.logs || []).map(log => ({
                     id: log._id,
                     name: log.product?.name || 'Unknown',
                     category: log.product?.category || 'General',
@@ -61,12 +61,12 @@ const AddQuantity = () => {
                 setRecentEntries(logs);
             }
 
-            if (productsRes.data.success) {
-                setProducts(productsRes.data.products);
+            if (productsRes.status === 'fulfilled' && productsRes.value.data.success) {
+                setProducts(productsRes.value.data.products || []);
             }
         } catch (error) {
-            console.error('Error fetching data:', error);
-            toast.error('Failed to fetch required data');
+            setRecentEntries([]);
+            setProducts([]);
         } finally {
             setLoading(false);
         }

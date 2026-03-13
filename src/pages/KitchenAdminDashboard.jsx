@@ -21,13 +21,16 @@ const KitchenAdminDashboard = () => {
             setLoading(true);
             const token = localStorage.getItem('token');
             const user = JSON.parse(localStorage.getItem('user'));
-            
+
             // Fetch kitchen info
             const kitchenRes = await fetch(`${API_URL}/kitchens`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const kitchenData = await kitchenRes.json();
-            const myKitchen = kitchenData.kitchens?.find(k => k.admin?.toString() === user.id);
+            const userId = user.id || user._id; // Handle both id and _id safely
+            const myKitchen = kitchenData.kitchens?.find(k => 
+                k.admin?._id?.toString() === userId || k.admin?.toString() === userId
+            );
             setKitchen(myKitchen);
 
             // Fetch orders
@@ -55,7 +58,7 @@ const KitchenAdminDashboard = () => {
             const transferData = await transferRes.json();
             if (transferData.success) {
                 const myTransfers = transferData.transfers.filter(
-                    t => t.toUser?._id === user._id || t.toUser === user._id
+                    t => t.toUser?._id?.toString() === userId || t.toUser?.toString() === userId
                 );
                 setTransfers(myTransfers);
             }
@@ -265,17 +268,16 @@ const KitchenAdminDashboard = () => {
                                     <MdShoppingCart />
                                 </div>
                                 <div>
-                                    <p className="font-bold text-secondary">#{order.billNumber}</p>
-                                    <p className="text-xs text-zinc-500">{order.customer?.name || 'Walk-in'}</p>
+                                    <p className="font-bold text-secondary">#{order.billNumber || order.orderNumber || '000000'}</p>
+                                    <p className="text-xs text-zinc-500">{order.customer?.name || (typeof order.customer === 'string' ? order.customer : 'Walk-in')}</p>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <p className="font-bold text-secondary">₹{order.totalAmount}</p>
-                                <span className={`text-xs px-2 py-1 rounded-lg ${
-                                    order.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                                <span className={`text-xs px-2 py-1 rounded-lg ${order.status === 'Completed' ? 'bg-green-100 text-green-700' :
                                     order.status === 'Processing' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-yellow-100 text-yellow-700'
-                                }`}>
+                                        'bg-yellow-100 text-yellow-700'
+                                    }`}>
                                     {order.status.replace(/_/g, ' ')}
                                 </span>
                             </div>
