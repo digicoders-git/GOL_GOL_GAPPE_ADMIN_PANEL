@@ -132,27 +132,25 @@ const Dashboard = () => {
                 }));
                 setRecentOrders(mappedOrders);
 
-                // Simple chart data
-                const last7Days = Array.from({ length: 7 }, (_, i) => {
-                    const d = new Date();
-                    d.setDate(d.getDate() - (6 - i));
-                    return d.toLocaleDateString('en-IN', { weekday: 'short' });
-                });
+                // Use real weekly revenue data from API
+                const weeklyData = stats.weeklyRevenue || [];
+                const revCategories = weeklyData.map(d => d.date);
+                const revData = weeklyData.map(d => d.revenue);
 
                 setChartsData({
                     revenue: {
-                        categories: last7Days,
+                        categories: revCategories,
                         series: [{
                             name: 'Revenue',
-                            data: [12000, 15000, 18000, 14000, 20000, 16000, 22000],
+                            data: revData,
                             color: '#F97316'
                         }]
                     },
                     kitchen: {
                         categories: kitchens.slice(0, 4).map(k => k.name || 'Kitchen'),
                         series: [{
-                            name: 'Efficiency %',
-                            data: [85, 92, 78, 88],
+                            name: 'Orders',
+                            data: kitchens.slice(0, 4).map(() => 0),
                             color: '#F97316'
                         }]
                     },
@@ -161,9 +159,9 @@ const Dashboard = () => {
                             name: 'Stock',
                             colorByPoint: true,
                             data: [
-                                { name: 'In Stock', y: Math.max(0, products.length - (stats.lowStockCount || 0)), color: '#10b981' },
+                                { name: 'In Stock', y: Math.max(0, products.length - (stats.lowStockCount || 0) - (stats.outOfStockCount || 0)), color: '#10b981' },
                                 { name: 'Low Stock', y: stats.lowStockCount || 0, color: '#f59e0b' },
-                                { name: 'Out of Stock', y: 2, color: '#ef4444' }
+                                { name: 'Out of Stock', y: stats.outOfStockCount || 0, color: '#ef4444' }
                             ]
                         }]
                     }
@@ -304,13 +302,13 @@ const Dashboard = () => {
             gridLineColor: '#f1f5f9',
             labels: {
                 style: { color: '#94a3b8', fontSize: '10px', fontWeight: '800' },
-                formatter: function () { return this.value + '%'; }
+                formatter: function () { return this.value; }
             }
         },
         tooltip: {
             useHTML: true,
             headerFormat: '',
-            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 12px; text-transform: uppercase; margin-bottom: 4px;">{point.category}</div><div style="font-size: 18px; font-weight: 900; color: #F97316;">{point.y}% Efficiency</div></div>',
+            pointFormat: '<div style="text-align: center; padding: 8px;"><div style="font-weight: 900; color: #2D1B0D; font-size: 12px; text-transform: uppercase; margin-bottom: 4px;">{point.category}</div><div style="font-size: 18px; font-weight: 900; color: #F97316;">{point.y} Orders</div></div>',
             backgroundColor: '#ffffff',
             borderRadius: 12,
             borderWidth: 2,
@@ -328,7 +326,7 @@ const Dashboard = () => {
                 ],
                 dataLabels: {
                     enabled: true,
-                    format: '{point.y}%',
+                    format: '{point.y}',
                     style: { fontSize: '10px', fontWeight: '900', color: '#ffffff', textOutline: 'none' }
                 },
                 animation: { duration: 2000, easing: 'easeOutBounce' }
