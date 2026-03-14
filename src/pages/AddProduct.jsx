@@ -38,7 +38,13 @@ const AddProduct = () => {
     const [activeSection, setActiveSection] = useState('basic');
     const [thumbnailFile, setThumbnailFile] = useState(null);
     const [thumbnailPreview, setThumbnailPreview] = useState('');
+    const [galleryFiles, setGalleryFiles] = useState([]);
+    const [galleryPreviews, setGalleryPreviews] = useState([]);
+    const [videoFile, setVideoFile] = useState(null);
+    const [videoPreview, setVideoPreview] = useState('');
     const thumbnailInputRef = useRef(null);
+    const galleryInputRef = useRef(null);
+    const videoInputRef = useRef(null);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -49,7 +55,7 @@ const AddProduct = () => {
         category: '',
         cuisineType: '', // Will split into array on submit
         tags: '', // Will split into array on submit
-        images: '', // Will split into array on submit
+        images: [],
         thumbnail: '',
         videoUrl: '',
         price: '',
@@ -109,7 +115,7 @@ const AddProduct = () => {
             console.log('Fetching products...');
             const response = await getProducts();
             console.log('Products API response:', response);
-            
+
             if (response?.data?.success && Array.isArray(response.data.products)) {
                 console.log('Products found:', response.data.products.length);
                 setProducts(response.data.products);
@@ -141,7 +147,7 @@ const AddProduct = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (saving) return;
-        
+
         // Validation
         if (!formData.name?.trim()) {
             toast.error('Product name is required');
@@ -162,22 +168,13 @@ const AddProduct = () => {
 
         setSaving(true);
 
-        // Convert image file to base64 if uploaded
-        let thumbnailData = formData.thumbnail;
-        if (thumbnailFile) {
-            const reader = new FileReader();
-            thumbnailData = await new Promise((resolve) => {
-                reader.onloadend = () => resolve(reader.result);
-                reader.readAsDataURL(thumbnailFile);
-            });
-        }
-
+        // Image already uploaded to Cloudinary, just use the URL
         const formattedData = {
             ...formData,
-            thumbnail: thumbnailData,
+            // thumbnail already contains Cloudinary URL
             cuisineType: (formData.cuisineType || '').toString().split(',').map(item => item.trim()).filter(i => i),
             tags: (formData.tags || '').toString().split(',').map(item => item.trim()).filter(i => i),
-            images: (formData.images || '').toString().split(',').map(item => item.trim()).filter(i => i),
+            images: formData.images,
             nutrition: {
                 calories: Number(formData.calories) || 0,
                 protein: Number(formData.protein) || 0,
@@ -246,6 +243,10 @@ const AddProduct = () => {
         });
         setThumbnailFile(null);
         setThumbnailPreview('');
+        setGalleryFiles([]);
+        setGalleryPreviews([]);
+        setVideoFile(null);
+        setVideoPreview('');
         setIsEditing(false);
         setCurrentId(null);
         setActiveSection('basic');
@@ -261,7 +262,7 @@ const AddProduct = () => {
             category: product.category || '',
             cuisineType: product.cuisineType?.join(', ') || '',
             tags: product.tags?.join(', ') || '',
-            images: product.images?.join(', ') || '',
+            images: product.images || [],
             thumbnail: product.thumbnail || '',
             videoUrl: product.videoUrl || '',
             price: product.price || '',
@@ -281,6 +282,8 @@ const AddProduct = () => {
             minStock: product.minStock || 10
         });
         setThumbnailPreview(product.thumbnail || '');
+        setGalleryPreviews(product.images || []);
+        setVideoPreview(product.videoUrl || '');
         setIsEditing(true);
         setCurrentId(product._id);
         setActiveSection('basic');
@@ -373,7 +376,7 @@ const AddProduct = () => {
                                                 <MdInventory className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" />
                                                 <input
                                                     type="text"
-                                                   required
+                                                    required
                                                     className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
                                                     value={formData.name}
                                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -520,9 +523,9 @@ const AddProduct = () => {
                                                         <span>Base Rate</span>
                                                         <span className="text-white">₹{priceDetails.basePrice.toFixed(2)}</span>
                                                     </div>
-                                                    
-                                                   
-                                                    
+
+
+
                                                 </div>
 
                                                 <div className="pt-3 border-t border-white/10 flex justify-between items-end">
@@ -560,11 +563,44 @@ const AddProduct = () => {
                                                     type="file"
                                                     accept="image/*"
                                                     className="hidden"
-                                                    onChange={(e) => {
+                                                    onChange={async (e) => {
                                                         const file = e.target.files[0];
                                                         if (file) {
-                                                            setThumbnailFile(file);
-                                                            setThumbnailPreview(URL.createObjectURL(file));
+                                                            if (file.size > 5 * 1024 * 1024) {
+                                                                toast.error(`"${file.name}" ki size ${(file.size / (1024 * 1024)).toFixed(2)}MB hai — maximum 5MB allowed hai. Chhoti image use karo!`);
+                                                                e.target.value = '';
+                                                                return;
+                                                            }
+                                                            // Show loading state
+                                                            setThumbnailPreview('loading');
+                                                            
+                                                            try {
+                                                                // Convert to base64 and upload to Cloudinary immediately
+                                                                const reader = new FileReader();
+                                                                const base64 = await new Promise((resolve) => {
+                                                                    reader.onloadend = () => resolve(reader.result);
+                                                                    reader.readAsDataURL(file);
+                                                                });
+                                                                
+                                                                // Upload to Cloudinary via API
+                                                                const uploadResponse = await api.post('/products/upload-image', {
+                                                                    image: base64,
+                                                                    folder: 'products/thumbnails'
+                                                                });
+                                                                
+                                                                if (uploadResponse.data.success) {
+                                                                    const cloudinaryUrl = uploadResponse.data.url;
+                                                                    setThumbnailPreview(cloudinaryUrl);
+                                                                    setFormData({ ...formData, thumbnail: cloudinaryUrl });
+                                                                    toast.success('Thumbnail uploaded to Cloudinary!');
+                                                                } else {
+                                                                    throw new Error('Upload failed');
+                                                                }
+                                                            } catch (error) {
+                                                                console.error('Upload error:', error);
+                                                                toast.error('Failed to upload image');
+                                                                setThumbnailPreview('');
+                                                            }
                                                         }
                                                     }}
                                                 />
@@ -572,13 +608,17 @@ const AddProduct = () => {
                                                     onClick={() => thumbnailInputRef.current?.click()}
                                                     className="w-full bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-xl py-8 px-4 font-bold outline-none hover:border-primary hover:bg-primary/5 transition-all text-sm flex flex-col items-center gap-3 cursor-pointer"
                                                 >
-                                                    {thumbnailPreview ? (
+                                                    {thumbnailPreview === 'loading' ? (
+                                                        <div className="flex flex-col items-center gap-3">
+                                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                                            <p className="text-primary font-black">Uploading ...</p>
+                                                        </div>
+                                                    ) : thumbnailPreview ? (
                                                         <div className="relative">
                                                             <img src={thumbnailPreview} alt="Preview" className="w-32 h-32 object-cover rounded-xl border-2 border-zinc-200" />
                                                             <div
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setThumbnailFile(null);
                                                                     setThumbnailPreview('');
                                                                     setFormData({ ...formData, thumbnail: '' });
                                                                 }}
@@ -586,12 +626,15 @@ const AddProduct = () => {
                                                             >
                                                                 <MdClose size={14} />
                                                             </div>
+                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] p-1 rounded-b-xl text-center">
+                                                                Cloudinary ✓
+                                                            </div>
                                                         </div>
                                                     ) : (
                                                         <>
                                                             <MdCloudUpload size={40} className="text-zinc-300" />
                                                             <div className="text-center">
-                                                                <p className="text-secondary font-black">Click to upload image</p>
+                                                                <p className="text-secondary font-black">Click to upload to Cloudinary</p>
                                                                 <p className="text-[9px] text-zinc-400 uppercase tracking-widest mt-1">PNG, JPG up to 5MB</p>
                                                             </div>
                                                         </>
@@ -601,27 +644,178 @@ const AddProduct = () => {
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Gallery Images (Comma separated URLs)</label>
-                                            <textarea
-                                                rows="3"
-                                                className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm resize-none"
-                                                value={formData.images}
-                                                onChange={(e) => setFormData({ ...formData, images: e.target.value })}
-                                                placeholder="URL 1, URL 2, URL 3..."
-                                            />
+                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Gallery Images (Multiple Files)</label>
+                                            <div className="relative">
+                                                <input
+                                                    ref={galleryInputRef}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    multiple
+                                                    className="hidden"
+                                                    onChange={async (e) => {
+                                                        const files = Array.from(e.target.files);
+                                                        if (files.length > 0) {
+                                                            const validFiles = files.filter(file => {
+                                                                if (file.size > 5 * 1024 * 1024) {
+                                                                    toast.error(`"${file.name}" ki size ${(file.size / (1024 * 1024)).toFixed(2)}MB hai — maximum 5MB allowed hai.`);
+                                                                    return false;
+                                                                }
+                                                                return true;
+                                                            });
+                                                            
+                                                            if (validFiles.length > 0) {
+                                                                const uploadedUrls = [];
+                                                                const previews = [];
+                                                                
+                                                                for (const file of validFiles) {
+                                                                    try {
+                                                                        const reader = new FileReader();
+                                                                        const base64 = await new Promise((resolve) => {
+                                                                            reader.onloadend = () => resolve(reader.result);
+                                                                            reader.readAsDataURL(file);
+                                                                        });
+                                                                        
+                                                                        const uploadResponse = await api.post('/products/upload-image', {
+                                                                            image: base64,
+                                                                            folder: 'products/gallery'
+                                                                        });
+                                                                        
+                                                                        if (uploadResponse.data.success) {
+                                                                            uploadedUrls.push(uploadResponse.data.url);
+                                                                            previews.push(uploadResponse.data.url);
+                                                                        }
+                                                                    } catch (error) {
+                                                                        console.error('Upload error:', error);
+                                                                        toast.error(`Failed to upload ${file.name}`);
+                                                                    }
+                                                                }
+                                                                
+                                                                if (uploadedUrls.length > 0) {
+                                                                    setGalleryPreviews([...galleryPreviews, ...previews]);
+                                                                    setFormData({ ...formData, images: [...formData.images, ...uploadedUrls] });
+                                                                    toast.success(`${uploadedUrls.length} images uploaded!`);
+                                                                }
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                                <div
+                                                    onClick={() => galleryInputRef.current?.click()}
+                                                    className="w-full bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-xl py-6 px-4 font-bold outline-none hover:border-primary hover:bg-primary/5 transition-all text-sm flex flex-col items-center gap-3 cursor-pointer"
+                                                >
+                                                    <MdCloudUpload size={32} className="text-zinc-300" />
+                                                    <div className="text-center">
+                                                        <p className="text-secondary font-black">Click to upload multiple images</p>
+                                                        <p className="text-[9px] text-zinc-400 uppercase tracking-widest mt-1">PNG, JPG up to 5MB each</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                {galleryPreviews.length > 0 && (
+                                                    <div className="grid grid-cols-3 gap-2 mt-3">
+                                                        {galleryPreviews.map((preview, index) => (
+                                                            <div key={index} className="relative">
+                                                                <img src={preview} alt={`Gallery ${index + 1}`} className="w-full h-20 object-cover rounded-lg border-2 border-zinc-200" />
+                                                                <div
+                                                                    onClick={() => {
+                                                                        const newPreviews = galleryPreviews.filter((_, i) => i !== index);
+                                                                        const newImages = formData.images.filter((_, i) => i !== index);
+                                                                        setGalleryPreviews(newPreviews);
+                                                                        setFormData({ ...formData, images: newImages });
+                                                                    }}
+                                                                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 cursor-pointer"
+                                                                >
+                                                                    <MdClose size={12} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Video URL (Optional)</label>
+                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Video Upload (Optional)</label>
                                             <div className="relative">
-                                                <MdVideoLibrary className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" />
                                                 <input
-                                                    type="text"
-                                                    className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
-                                                    value={formData.videoUrl}
-                                                    onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
-                                                    placeholder="YouTube / Video link"
+                                                    ref={videoInputRef}
+                                                    type="file"
+                                                    accept="video/*"
+                                                    className="hidden"
+                                                    onChange={async (e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            if (file.size > 50 * 1024 * 1024) {
+                                                                toast.error(`Video size ${(file.size / (1024 * 1024)).toFixed(2)}MB hai — maximum 50MB allowed hai.`);
+                                                                e.target.value = '';
+                                                                return;
+                                                            }
+                                                            
+                                                            setVideoPreview('loading');
+                                                            
+                                                            try {
+                                                                const reader = new FileReader();
+                                                                const base64 = await new Promise((resolve) => {
+                                                                    reader.onloadend = () => resolve(reader.result);
+                                                                    reader.readAsDataURL(file);
+                                                                });
+                                                                
+                                                                const uploadResponse = await api.post('/products/upload-video', {
+                                                                    video: base64,
+                                                                    folder: 'products/videos'
+                                                                });
+                                                                
+                                                                if (uploadResponse.data.success) {
+                                                                    const videoUrl = uploadResponse.data.url;
+                                                                    setVideoPreview(videoUrl);
+                                                                    setFormData({ ...formData, videoUrl });
+                                                                    toast.success('Video uploaded successfully!');
+                                                                } else {
+                                                                    throw new Error('Upload failed');
+                                                                }
+                                                            } catch (error) {
+                                                                console.error('Video upload error:', error);
+                                                                toast.error('Failed to upload video');
+                                                                setVideoPreview('');
+                                                            }
+                                                        }
+                                                    }}
                                                 />
+                                                <div
+                                                    onClick={() => videoInputRef.current?.click()}
+                                                    className="w-full bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-xl py-6 px-4 font-bold outline-none hover:border-primary hover:bg-primary/5 transition-all text-sm flex flex-col items-center gap-3 cursor-pointer"
+                                                >
+                                                    {videoPreview === 'loading' ? (
+                                                        <div className="flex flex-col items-center gap-3">
+                                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                                            <p className="text-primary font-black">Uploading video...</p>
+                                                        </div>
+                                                    ) : videoPreview ? (
+                                                        <div className="relative">
+                                                            <video src={videoPreview} className="w-32 h-20 object-cover rounded-xl border-2 border-zinc-200" controls />
+                                                            <div
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setVideoPreview('');
+                                                                    setFormData({ ...formData, videoUrl: '' });
+                                                                }}
+                                                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 cursor-pointer"
+                                                            >
+                                                                <MdClose size={14} />
+                                                            </div>
+                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] p-1 rounded-b-xl text-center">
+                                                                Video ✓
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <MdVideoLibrary size={32} className="text-zinc-300" />
+                                                            <div className="text-center">
+                                                                <p className="text-secondary font-black">Click to upload video</p>
+                                                                <p className="text-[9px] text-zinc-400 uppercase tracking-widest mt-1">MP4, MOV up to 50MB</p>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 
