@@ -131,7 +131,7 @@ const AddProduct = () => {
             console.error('Error response:', error.response?.data);
             setProducts([]);
         } finally {
-            setTimeout(() => setLoading(false), 100); // Small delay to prevent flicker
+            setTimeout(() => setLoading(false), 100);
         }
     };
 
@@ -573,7 +573,7 @@ const AddProduct = () => {
                                                             }
                                                             // Show loading state
                                                             setThumbnailPreview('loading');
-                                                            
+
                                                             try {
                                                                 // Convert to base64 and upload to Cloudinary immediately
                                                                 const reader = new FileReader();
@@ -581,13 +581,13 @@ const AddProduct = () => {
                                                                     reader.onloadend = () => resolve(reader.result);
                                                                     reader.readAsDataURL(file);
                                                                 });
-                                                                
+
                                                                 // Upload to Cloudinary via API
                                                                 const uploadResponse = await api.post('/products/upload-image', {
                                                                     image: base64,
                                                                     folder: 'products/thumbnails'
                                                                 });
-                                                                
+
                                                                 if (uploadResponse.data.success) {
                                                                     const cloudinaryUrl = uploadResponse.data.url;
                                                                     setThumbnailPreview(cloudinaryUrl);
@@ -662,11 +662,11 @@ const AddProduct = () => {
                                                                 }
                                                                 return true;
                                                             });
-                                                            
+
                                                             if (validFiles.length > 0) {
                                                                 const uploadedUrls = [];
                                                                 const previews = [];
-                                                                
+
                                                                 for (const file of validFiles) {
                                                                     try {
                                                                         const reader = new FileReader();
@@ -674,12 +674,12 @@ const AddProduct = () => {
                                                                             reader.onloadend = () => resolve(reader.result);
                                                                             reader.readAsDataURL(file);
                                                                         });
-                                                                        
+
                                                                         const uploadResponse = await api.post('/products/upload-image', {
                                                                             image: base64,
                                                                             folder: 'products/gallery'
                                                                         });
-                                                                        
+
                                                                         if (uploadResponse.data.success) {
                                                                             uploadedUrls.push(uploadResponse.data.url);
                                                                             previews.push(uploadResponse.data.url);
@@ -689,7 +689,7 @@ const AddProduct = () => {
                                                                         toast.error(`Failed to upload ${file.name}`);
                                                                     }
                                                                 }
-                                                                
+
                                                                 if (uploadedUrls.length > 0) {
                                                                     setGalleryPreviews([...galleryPreviews, ...previews]);
                                                                     setFormData({ ...formData, images: [...formData.images, ...uploadedUrls] });
@@ -709,7 +709,7 @@ const AddProduct = () => {
                                                         <p className="text-[9px] text-zinc-400 uppercase tracking-widest mt-1">PNG, JPG up to 5MB each</p>
                                                     </div>
                                                 </div>
-                                                
+
                                                 {galleryPreviews.length > 0 && (
                                                     <div className="grid grid-cols-3 gap-2 mt-3">
                                                         {galleryPreviews.map((preview, index) => (
@@ -749,21 +749,21 @@ const AddProduct = () => {
                                                                 e.target.value = '';
                                                                 return;
                                                             }
-                                                            
+
                                                             setVideoPreview('loading');
-                                                            
+
                                                             try {
                                                                 const reader = new FileReader();
                                                                 const base64 = await new Promise((resolve) => {
                                                                     reader.onloadend = () => resolve(reader.result);
                                                                     reader.readAsDataURL(file);
                                                                 });
-                                                                
+
                                                                 const uploadResponse = await api.post('/products/upload-video', {
                                                                     video: base64,
                                                                     folder: 'products/videos'
                                                                 });
-                                                                
+
                                                                 if (uploadResponse.data.success) {
                                                                     const videoUrl = uploadResponse.data.url;
                                                                     setVideoPreview(videoUrl);
@@ -882,6 +882,23 @@ const AddProduct = () => {
                                             >
                                                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.inStock ? 'right-1' : 'left-1'}`} />
                                             </button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Unit *</label>
+                                            <select
+                                                className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
+                                                value={formData.unit}
+                                                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                                            >
+                                                <option value="pcs">Pieces (pcs)</option>
+                                                <option value="kg">Kilogram (kg)</option>
+                                                <option value="g">Gram (g)</option>
+                                                <option value="l">Liter (l)</option>
+                                                <option value="ml">Milliliter (ml)</option>
+                                                <option value="plate">Plate</option>
+                                                <option value="bowl">Bowl</option>
+                                                <option value="box">Box</option>
+                                            </select>
                                         </div>
                                     </motion.div>
                                 )}

@@ -93,7 +93,7 @@ const AddQuantity = () => {
             ...formData,
             productName: product.name,
             category: product.category,
-            unit: product.unit
+            unit: product.unit || 'pcs'
         });
         setProductSearch(product.name);
         setShowProductDropdown(false);
@@ -329,16 +329,13 @@ const AddQuantity = () => {
                                     <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Unit</label>
                                     <div className="relative">
                                         <MdScale className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300 text-lg" />
-                                        <select
-                                            className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 pl-10 pr-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-secondary shadow-sm text-sm appearance-none"
+                                        <input
+                                            type="text"
+                                            readOnly
+                                            className="w-full bg-zinc-100 border border-zinc-200 rounded-xl py-3 pl-10 pr-4 font-bold outline-none text-zinc-500 shadow-sm text-sm cursor-not-allowed"
                                             value={formData.unit}
-                                            onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                                        >
-                                            <option value="kg">kg</option>
-                                            <option value="ltr">ltr</option>
-                                            <option value="pcs">pcs</option>
-                                            <option value="pkt">pkt</option>
-                                        </select>
+                                            placeholder="Auto-filled"
+                                        />
                                     </div>
                                 </div>
                             </div>

@@ -21,7 +21,7 @@ const MyOrders = () => {
         try {
             const response = await getUserOrders();
             if (response.data.success) {
-                setOrders(response.data.bills);
+                setOrders(response.data.orders); // Changed from bills to orders
             }
         } catch (error) {
             console.error('Error fetching orders:', error);

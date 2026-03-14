@@ -78,7 +78,7 @@ export const getKitchenInventory = (id) => api.get(`/kitchens/${id}/inventory`);
 
 // Billing APIs
 export const getBills = (page = 1, limit = 20) => api.get(`/billing?page=${page}&limit=${limit}`);
-export const getUserOrders = () => api.get('/billing/my-orders');
+export const getUserOrders = () => api.get('/orders/my-orders');
 export const getKitchenOrders = () => api.get('/billing/kitchen-orders');
 export const getAllOrders = () => api.get('/orders');
 export const createBill = (data) => api.post('/billing', data);

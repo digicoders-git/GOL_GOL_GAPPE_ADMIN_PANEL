@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Image as ImageIcon, Search } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { getProducts } from '../utils/api';
 
 const OfferManagement = () => {
     const [offers, setOffers] = useState([]);
@@ -10,6 +11,8 @@ const OfferManagement = () => {
     const [editingOffer, setEditingOffer] = useState(null);
     const [formData, setFormData] = useState({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true, productId: '' });
     const [saving, setSaving] = useState(false);
+    const [productSearch, setProductSearch] = useState('');
+    const [loadingProducts, setLoadingProducts] = useState(false);
 
     useEffect(() => {
         fetchOffers();
@@ -18,12 +21,20 @@ const OfferManagement = () => {
 
     const fetchProducts = async () => {
         try {
-            const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/products`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            });
-            setProducts(data.products || []);
+            setLoadingProducts(true);
+            console.log('Fetching products for offers...');
+            const response = await getProducts();
+            console.log('Products response:', response);
+            
+            const productsList = response.data?.products || response.data || [];
+            console.log('Products list:', productsList);
+            setProducts(productsList);
         } catch (error) {
-            console.error('Failed to fetch products');
+            console.error('Failed to fetch products:', error);
+            toast.error('Failed to load products');
+            setProducts([]);
+        } finally {
+            setLoadingProducts(false);
         }
     };
 
@@ -105,14 +116,20 @@ const OfferManagement = () => {
             isActive: offer.isActive,
             productId: offer.productId || ''
         });
+        setProductSearch('');
         setShowModal(true);
     };
+
+    const filteredProducts = products.filter(p => 
+        p.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
+        p.category?.toLowerCase().includes(productSearch.toLowerCase())
+    );
 
     return (
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold">Offer Management</h1>
-                <button onClick={() => { setShowModal(true); setEditingOffer(null); setFormData({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true, productId: '' }); }} className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <button onClick={() => { setShowModal(true); setEditingOffer(null); setProductSearch(''); setFormData({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true, productId: '' }); }} className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
                     <Plus size={20} /> Add Offer
                 </button>
             </div>
@@ -156,12 +173,41 @@ const OfferManagement = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Select Product (Optional)</label>
-                                    <select value={formData.productId} onChange={(e) => handleProductSelect(e.target.value)} className="w-full border rounded-lg px-3 py-2">
-                                        <option value="">-- Select Product --</option>
-                                        {products.map(p => (
-                                            <option key={p._id} value={p._id}>{p.name}</option>
-                                        ))}
-                                    </select>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                        <input
+                                            type="text"
+                                            placeholder="Search products..."
+                                            value={productSearch}
+                                            onChange={(e) => setProductSearch(e.target.value)}
+                                            className="w-full border rounded-lg px-3 py-2 pl-10 mb-2"
+                                        />
+                                    </div>
+                                    {loadingProducts ? (
+                                        <div className="w-full border rounded-lg px-3 py-8 text-center text-gray-400">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                                            Loading products...
+                                        </div>
+                                    ) : (
+                                        <select 
+                                            value={formData.productId} 
+                                            onChange={(e) => handleProductSelect(e.target.value)} 
+                                            className="w-full border rounded-lg px-3 py-2 max-h-40 overflow-y-auto"
+                                            size={5}
+                                        >
+                                            <option value="">-- Select Product --</option>
+                                            {filteredProducts.length > 0 ? (
+                                                filteredProducts.map(p => (
+                                                    <option key={p._id} value={p._id}>{p.name} ({p.category})</option>
+                                                ))
+                                            ) : (
+                                                <option disabled>No products found</option>
+                                            )}
+                                        </select>
+                                    )}
+                                    {!loadingProducts && products.length === 0 && (
+                                        <p className="text-xs text-red-500 mt-1">No products available. Add products first.</p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Title</label>
