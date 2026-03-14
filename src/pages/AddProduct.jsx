@@ -34,6 +34,7 @@ const AddProduct = () => {
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [currentId, setCurrentId] = useState(null);
+    const [saving, setSaving] = useState(false);
     const [activeSection, setActiveSection] = useState('basic');
     const [thumbnailFile, setThumbnailFile] = useState(null);
     const [thumbnailPreview, setThumbnailPreview] = useState('');
@@ -139,6 +140,7 @@ const AddProduct = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (saving) return;
         
         // Validation
         if (!formData.name?.trim()) {
@@ -157,6 +159,8 @@ const AddProduct = () => {
             toast.error('Discount price must be less than selling price');
             return;
         }
+
+        setSaving(true);
 
         // Convert image file to base64 if uploaded
         let thumbnailData = formData.thumbnail;
@@ -206,6 +210,8 @@ const AddProduct = () => {
         } catch (error) {
             console.error('Submit error:', error);
             toast.error(error.response?.data?.message || 'Failed to save product', { id: loadingToast });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -698,9 +704,10 @@ const AddProduct = () => {
                                 {activeSection === 'stock' ? (
                                     <button
                                         type="submit"
-                                        className="flex-[2] bg-secondary text-primary font-black py-4 rounded-2xl shadow-xl shadow-secondary/20 hover:bg-black transition-all active:scale-[0.98] text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                                        disabled={saving}
+                                        className={`flex-[2] bg-secondary text-primary font-black py-4 rounded-2xl shadow-xl shadow-secondary/20 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-black active:scale-[0.98] cursor-pointer'}`}
                                     >
-                                        <MdSave size={18} /> {isEditing ? 'Update Master Record' : 'Save To Global Catalog'}
+                                        <MdSave size={18} /> {saving ? 'Saving...' : isEditing ? 'Update Master Record' : 'Save To Global Catalog'}
                                     </button>
                                 ) : (
                                     <button

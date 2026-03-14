@@ -15,6 +15,7 @@ const ManageAdmins = () => {
         password: '',
         role: 'billing_admin'
     });
+    const [saving, setSaving] = useState(false);
 
     const fetchUsers = async () => {
         try {
@@ -41,6 +42,8 @@ const ManageAdmins = () => {
 
     const handleCreate = async (e) => {
         e.preventDefault();
+        if (saving) return;
+        setSaving(true);
         try {
             const response = await fetch(`${API_URL}/api/auth/register`, {
                 method: 'POST',
@@ -61,6 +64,8 @@ const ManageAdmins = () => {
             }
         } catch (error) {
             toast.error('Failed to create admin');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -221,9 +226,10 @@ const ManageAdmins = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 py-4 bg-secondary text-primary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black"
+                                    disabled={saving}
+                                    className={`flex-1 py-4 bg-secondary text-primary rounded-xl text-[10px] font-black uppercase tracking-widest ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-black cursor-pointer'}`}
                                 >
-                                    Create Admin
+                                    {saving ? 'Creating...' : 'Create Admin'}
                                 </button>
                             </div>
                         </form>

@@ -33,6 +33,7 @@ const ProductAssign = () => {
     const [recipientUsers, setRecipientUsers] = useState([]);
     const [transfers, setTransfers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -79,6 +80,8 @@ const ProductAssign = () => {
 
     const handleAssign = async (e) => {
         e.preventDefault();
+        if (saving) return;
+        setSaving(true);
         try {
             const response = await transferStock(formData);
             if (response.data.success) {
@@ -88,6 +91,8 @@ const ProductAssign = () => {
             }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Transfer failed');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -265,10 +270,11 @@ const ProductAssign = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-secondary text-primary font-black py-3.5 rounded-xl shadow-lg shadow-secondary/10 hover:shadow-xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm group mt-2 cursor-pointer"
+                                disabled={saving}
+                                className={`w-full bg-secondary text-primary font-black py-3.5 rounded-xl shadow-lg shadow-secondary/10 transition-all flex items-center justify-center gap-2 text-sm group mt-2 ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:bg-black active:scale-[0.98] cursor-pointer'}`}
                             >
                                 <MdSend size={18} className="group-hover:translate-x-1 transition-transform" />
-                                TRANSFER STOCK
+                                {saving ? 'TRANSFERRING...' : 'TRANSFER STOCK'}
                             </button>
                         </form>
                     </div>

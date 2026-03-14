@@ -43,6 +43,7 @@ const ProductQuantity = () => {
 
     const [inventory, setInventory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
     const fetchProducts = async () => {
         try {
@@ -295,6 +296,8 @@ const ProductQuantity = () => {
 
     const saveEdit = async (e) => {
         e.preventDefault();
+        if (saving) return;
+        setSaving(true);
         try {
             const response = await updateProduct(editingProduct.id, {
                 name: editingProduct.name,
@@ -309,6 +312,8 @@ const ProductQuantity = () => {
         } catch (error) {
             console.error('Update error:', error);
             toast.error('Failed to update product');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -577,10 +582,11 @@ const ProductQuantity = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 bg-secondary text-primary font-black py-3 rounded-xl hover:bg-black hover:text-primary transition-all shadow-lg shadow-secondary/10 flex items-center justify-center gap-2 text-sm cursor-pointer"
+                                        disabled={saving}
+                                        className={`flex-1 bg-secondary text-primary font-black py-3 rounded-xl transition-all shadow-lg shadow-secondary/10 flex items-center justify-center gap-2 text-sm ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-black hover:text-primary cursor-pointer'}`}
                                     >
                                         <MdSave size={18} />
-                                        Save Changes
+                                        {saving ? 'Saving...' : 'Save Changes'}
                                     </button>
                                 </div>
                             </form>

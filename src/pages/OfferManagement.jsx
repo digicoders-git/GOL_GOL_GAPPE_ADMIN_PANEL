@@ -9,6 +9,7 @@ const OfferManagement = () => {
     const [showModal, setShowModal] = useState(false);
     const [editingOffer, setEditingOffer] = useState(null);
     const [formData, setFormData] = useState({ title: '', description: '', image: '', code: '', discountType: 'percentage', discountValue: 0, maxUses: 100, minOrderAmount: 0, expiryDate: '', isActive: true, productId: '' });
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         fetchOffers();
@@ -51,6 +52,8 @@ const OfferManagement = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (saving) return;
+        setSaving(true);
         try {
             if (editingOffer) {
                 await axios.put(`${import.meta.env.VITE_API_URL}/api/offers/${editingOffer._id}`, formData, {
@@ -69,6 +72,8 @@ const OfferManagement = () => {
             fetchOffers();
         } catch (error) {
             toast.error('Failed to save offer');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -205,7 +210,7 @@ const OfferManagement = () => {
                                 </div>
                             </div>
                             <div className="flex gap-3 mt-6">
-                                <button type="submit" className="flex-1 bg-primary text-white py-2 rounded-lg">Save</button>
+                                <button type="submit" disabled={saving} className={`flex-1 bg-primary text-white py-2 rounded-lg ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary/90 cursor-pointer'}`}>{saving ? 'Saving...' : 'Save'}</button>
                                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-300 py-2 rounded-lg">Cancel</button>
                             </div>
                         </form>

@@ -26,6 +26,7 @@ const ChangePassword = () => {
         new: false,
         confirm: false
     });
+    const [saving, setSaving] = useState(false);
 
     const toggleShow = (field) => {
         setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
@@ -39,10 +40,12 @@ const ChangePassword = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (saving) return;
         if (formData.newPassword !== formData.confirmPassword) {
             toast.error('New passwords do not match!');
             return;
         }
+        setSaving(true);
 
         const loadingToast = toast.loading('Updating security credentials...');
         try {
@@ -57,6 +60,8 @@ const ChangePassword = () => {
         } catch (error) {
             console.error('Password change error:', error);
             toast.error(error.response?.data?.message || 'Failed to update password', { id: loadingToast });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -168,10 +173,11 @@ const ChangePassword = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-secondary text-primary font-black py-4 rounded-xl shadow-lg shadow-secondary/10 hover:shadow-xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-3 text-sm group mt-6 cursor-pointer"
+                                disabled={saving}
+                                className={`w-full bg-secondary text-primary font-black py-4 rounded-xl shadow-lg shadow-secondary/10 transition-all flex items-center justify-center gap-3 text-sm group mt-6 ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:bg-black active:scale-[0.98] cursor-pointer'}`}
                             >
                                 <MdLock size={20} className="group-hover:rotate-12 transition-transform" />
-                                UPDATE CREDENTIALS
+                                {saving ? 'UPDATING...' : 'UPDATE CREDENTIALS'}
                             </button>
                         </form>
 

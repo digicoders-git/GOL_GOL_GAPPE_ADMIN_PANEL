@@ -26,6 +26,7 @@ const AddQuantity = () => {
     const [recentEntries, setRecentEntries] = useState([]);
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [showProductDropdown, setShowProductDropdown] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -119,10 +120,12 @@ const AddQuantity = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (saving) return;
         if (!formData.productName || !formData.quantity) {
             toast.error('Please fill all required fields');
             return;
         }
+        setSaving(true);
 
         const loadingToast = toast.loading('Updating inventory...');
         try {
@@ -135,6 +138,8 @@ const AddQuantity = () => {
             }
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to update stock', { id: loadingToast });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -354,10 +359,11 @@ const AddQuantity = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-secondary text-primary font-black py-3.5 rounded-xl shadow-lg shadow-secondary/10 hover:shadow-xl hover:bg-black transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm group mt-2 cursor-pointer"
+                                disabled={saving}
+                                className={`w-full bg-secondary text-primary font-black py-3.5 rounded-xl shadow-lg shadow-secondary/10 transition-all flex items-center justify-center gap-2 text-sm group mt-2 ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:bg-black active:scale-[0.98] cursor-pointer'}`}
                             >
                                 <MdSave size={18} className="group-hover:rotate-12 transition-transform" />
-                                ADD TO INVENTORY
+                                {saving ? 'SAVING...' : 'ADD TO INVENTORY'}
                             </button>
                         </form>
 
