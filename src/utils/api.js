@@ -95,4 +95,5 @@ export const deleteOffer = (id) => api.delete(`/offers/${id}`);
 export const validateOffer = (data) => api.post('/offers/validate', data);
 export const applyOffer = (data) => api.post('/offers/apply', data);
 
-
+// Admin Dashboard API
+export const getAdminDashboard = () => api.get('/admin/dashboard');
