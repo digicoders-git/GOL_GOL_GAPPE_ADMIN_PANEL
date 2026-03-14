@@ -77,7 +77,8 @@ const ProductDetail = () => {
         }
 
         // Calculate totals
-        const itemTotal = product.price * quantity;
+        const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
+        const itemTotal = effectivePrice * quantity;
         const packagingCharge = product.packagingCharge || 0;
         const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
         const discount = appliedOffer ? appliedOffer.discount : 0;
@@ -92,6 +93,12 @@ const ProductDetail = () => {
                         <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Item</span>
                         <span class="text-sm font-black text-secondary">${product.name} x ${quantity}</span>
                     </div>
+                    ${(product.discountPrice && product.discountPrice < product.price) ? `
+                    <div class="flex justify-between items-center bg-orange-50 p-4 rounded-2xl border border-orange-200">
+                        <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">Price Discount</span>
+                        <span class="text-sm font-black text-orange-600"><s>₹${product.price}</s> → ₹${product.discountPrice}/unit</span>
+                    </div>
+                    ` : ''}
                     ${appliedOffer ? `
                     <div class="flex justify-between items-center bg-green-50 p-4 rounded-2xl border border-green-200">
                         <span class="text-[10px] font-black text-green-600 uppercase tracking-widest">Discount (${appliedOffer.code})</span>
@@ -140,7 +147,8 @@ const ProductDetail = () => {
         setOrdering(true);
         try {
             // Calculate total with packaging and GST
-            const itemTotal = product.price * quantity;
+            const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
+            const itemTotal = effectivePrice * quantity;
             const packagingCharge = product.packagingCharge || 0;
             const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
             const discount = appliedOffer ? appliedOffer.discount : 0;
@@ -156,7 +164,7 @@ const ProductDetail = () => {
                     {
                         product: product._id,
                         quantity: quantity,
-                        price: product.price
+                        price: (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price
                     }
                 ],
                 totalAmount: totalAmount,
@@ -236,7 +244,8 @@ const ProductDetail = () => {
 
         setValidatingOffer(true);
         try {
-            const itemTotal = product.price * quantity;
+            const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
+            const itemTotal = effectivePrice * quantity;
             const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/offers/validate`, {
                 code: offerCode.toUpperCase(),
                 orderAmount: itemTotal,
@@ -262,8 +271,11 @@ const ProductDetail = () => {
         toast.success('Offer removed');
     };
 
+    const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
+    const discountPercent = (product.discountPrice && product.discountPrice < product.price) ? Math.round(((product.price - product.discountPrice) / product.price) * 100) : 0;
+
     const calculateTotal = () => {
-        const itemTotal = product.price * quantity;
+        const itemTotal = effectivePrice * quantity;
         const packagingCharge = product.packagingCharge || 0;
         const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
         const discount = appliedOffer ? appliedOffer.discount : 0;
@@ -340,6 +352,19 @@ const ProductDetail = () => {
                         <p className="text-secondary/60 text-lg font-medium leading-relaxed">
                             {product.detailedDescription || product.description || 'No detailed description available for this product.'}
                         </p>
+
+                        {/* Price Display */}
+                        <div className="flex items-baseline gap-3 mt-2">
+                            <span className="text-3xl font-black text-secondary">₹{effectivePrice}</span>
+                            {discountPercent > 0 && (
+                                <>
+                                    <span className="text-lg font-bold text-secondary/30 line-through">₹{product.price}</span>
+                                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
+                                        {discountPercent}% OFF
+                                    </span>
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {/* Kitchen Info */}

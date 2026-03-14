@@ -225,7 +225,14 @@ const OrderMenu = () => {
                                     <div className="mt-auto flex items-center justify-between pt-4 border-t border-primary/5">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-secondary/30 uppercase tracking-widest leading-none">Price</span>
-                                            <span className="text-2xl font-black text-secondary italic">₹{product.price}</span>
+                                            {product.discountPrice && product.discountPrice < product.price ? (
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-2xl font-black text-secondary italic">₹{product.discountPrice}</span>
+                                                    <span className="text-sm font-bold text-secondary/30 line-through">₹{product.price}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-2xl font-black text-secondary italic">₹{product.price}</span>
+                                            )}
                                         </div>
                                         <div className="w-12 h-12 bg-secondary text-primary rounded-2xl flex items-center justify-center group-hover:bg-primary group-hover:text-secondary transition-all active:scale-95 shadow-lg shadow-secondary/10">
                                             <FaShoppingBag size={20} />
