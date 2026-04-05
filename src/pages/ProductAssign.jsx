@@ -40,14 +40,18 @@ const ProductAssign = () => {
             setLoading(true);
             const isAdmin = role === 'super_admin' || role === 'admin' || role === 'billing_admin';
 
-            const [prodRes, userRes, transRes] = await Promise.all([
+            const [prodRes, adminRes, transRes] = await Promise.all([
                 isAdmin ? getProducts() : getUserInventory(),
-                getUsers(),
+                fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/auth/admins`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                }).then(r => r.json()),
                 getTransferHistory()
             ]);
 
             console.log('Product Data:', prodRes.data);
-            console.log('User Data:', userRes.data);
+            console.log('Admin Data:', adminRes);
             console.log('Transfer Data:', transRes.data);
 
             if (prodRes.data.success) {
@@ -55,9 +59,9 @@ const ProductAssign = () => {
                 setProducts(fetchedProducts);
                 console.log('Set Products:', fetchedProducts.length);
             }
-            if (userRes.data.success) {
+            if (adminRes.success) {
                 // Filter recipients: ONLY kitchen_admins are eligible for stock assignment
-                const filtered = userRes.data.users.filter(u => u.role === 'kitchen_admin');
+                const filtered = (adminRes.admins || []).filter(u => u.role === 'kitchen_admin');
                 setRecipientUsers(filtered);
                 console.log('Set Recipients:', filtered.length);
             }

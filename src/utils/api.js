@@ -16,6 +16,7 @@ const api = axios.create({
         'Content-Type': 'application/json'
     }
 });
+
 // Add request interceptor to include auth token
 api.interceptors.request.use(
     (config) => {
@@ -23,9 +24,29 @@ api.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+        console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
         return config;
     },
     (error) => Promise.reject(error)
+);
+
+// Add response interceptor for debugging
+api.interceptors.response.use(
+    (response) => {
+        console.log(`[API Response] ${response.config.url}`, response.status);
+        return response;
+    },
+    (error) => {
+        console.error(`[API Error] ${error.config?.url}`, error.response?.status, error.response?.data);
+        
+        // For 404 errors on billing routes, log more details
+        if (error.response?.status === 404 && error.config?.url?.includes('/billing')) {
+            console.error('Billing 404 - Full URL:', error.config.url);
+            console.error('Billing 404 - Method:', error.config.method);
+        }
+        
+        return Promise.reject(error);
+    }
 );
 
 // Add response interceptor to handle 401 errors
@@ -57,10 +78,10 @@ export const deleteUser = (id) => api.delete(`/auth/users/${id}`);
 export const updateProfile = (data) => api.put('/auth/profile', data);
 
 // Product/Inventory APIs
-export const getProducts = () => api.get('/products');
+export const getProducts = (params = '') => api.get(`/products${params ? `?${params}` : ''}`);
 export const getProduct = (id) => api.get(`/products/${id}`);
 export const createProduct = (data) => api.post('/products', data);
-export const getUserInventory = () => api.get('/products/user-inventory');
+export const getUserInventory = (params = '') => api.get(`/products/user-inventory${params ? `?${params}` : ''}`);
 export const addQuantity = (data) => api.post('/products/add-quantity', data);
 export const transferStock = (data) => api.post('/products/transfer', data);
 export const getTransferHistory = () => api.get('/products/transfer-history');
@@ -78,9 +99,11 @@ export const getKitchenInventory = (id) => api.get(`/kitchens/${id}/inventory`);
 
 // Billing APIs
 export const getBills = (page = 1, limit = 20) => api.get(`/billing?page=${page}&limit=${limit}`);
+export const getBillById = (id) => api.get(`/billing/${id}`);
 export const getUserOrders = () => api.get('/orders/my-orders');
 export const getKitchenOrders = () => api.get('/billing/kitchen-orders');
 export const getAllOrders = () => api.get('/orders');
+export const createOrder = (data) => api.post('/orders', data);
 export const createBill = (data) => api.post('/billing', data);
 export const updateBill = (id, data) => api.put(`/billing/${id}`, data);
 export const updateBillStatus = (id, status) => api.patch(`/billing/${id}/status`, { status });
@@ -97,3 +120,8 @@ export const applyOffer = (data) => api.post('/offers/apply', data);
 
 // Admin Dashboard API
 export const getAdminDashboard = () => api.get('/admin/dashboard');
+
+// Billing Admin Analytics/Fleet APIs
+export const getMyKitchen = () => api.get('/billing-admin/my-kitchen');
+export const getMyKitchenOrders = () => api.get('/billing-admin/my-kitchen/orders');
+export const getMyKitchenInventory = () => api.get('/billing-admin/my-kitchen/inventory');

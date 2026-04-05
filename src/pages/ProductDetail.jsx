@@ -5,7 +5,7 @@ import {
     FaStar, FaArrowLeft, FaShoppingBag, FaUtensils,
     FaInfoCircle, FaFire, FaLeaf, FaMapMarkerAlt, FaTag, FaTimes
 } from 'react-icons/fa';
-import { getProduct, createBill } from '../utils/api';
+import { getProduct, createOrder } from '../utils/api';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import confetti from 'canvas-confetti';
@@ -36,7 +36,6 @@ const ProductDetail = () => {
                 setProduct(response.data.product);
                 const fetchedKitchens = response.data.kitchens || [];
 
-                // Handle preferred kitchen from query params
                 const queryParams = new URLSearchParams(location.search);
                 const preferredKitchenId = queryParams.get('kitchen');
 
@@ -76,7 +75,11 @@ const ProductDetail = () => {
             return;
         }
 
-        // Calculate totals
+        if (appliedOffer && quantity > 1) {
+            toast.error('Offer can only be applied to 1 item. Please reduce quantity to 1.');
+            return;
+        }
+
         const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
         const itemTotal = effectivePrice * quantity;
         const packagingCharge = product.packagingCharge || 0;
@@ -84,7 +87,6 @@ const ProductDetail = () => {
         const discount = appliedOffer ? appliedOffer.discount : 0;
         const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
 
-        // --- SweetAlert Confirmation ---
         const result = await Swal.fire({
             title: `<span class="text-2xl font-black text-secondary uppercase italic tracking-tighter">Confirm Your Cravings</span>`,
             html: `
@@ -128,7 +130,6 @@ const ProductDetail = () => {
 
         if (!result.isConfirmed) return;
 
-        // Show loading modal
         Swal.fire({
             title: 'Placing Your Order...',
             html: `
@@ -146,7 +147,6 @@ const ProductDetail = () => {
 
         setOrdering(true);
         try {
-            // Calculate total with packaging and GST
             const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
             const itemTotal = effectivePrice * quantity;
             const packagingCharge = product.packagingCharge || 0;
@@ -155,11 +155,6 @@ const ProductDetail = () => {
             const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
 
             const orderData = {
-                customer: {
-                    name: user.name || 'User',
-                    phone: user.mobile
-                },
-                kitchen: selectedKitchen?._id,
                 items: [
                     {
                         product: product._id,
@@ -169,23 +164,12 @@ const ProductDetail = () => {
                 ],
                 totalAmount: totalAmount,
                 paymentMethod: 'Cash',
-                status: 'Pending'
+                paymentStatus: 'Pending',
+                offerCode: appliedOffer ? appliedOffer.code : null
             };
 
-            const response = await createBill(orderData);
+            const response = await createOrder(orderData);
             if (response.data.success) {
-                // Apply offer if used
-                if (appliedOffer) {
-                    try {
-                        await axios.post(`${import.meta.env.VITE_API_URL}/api/offers/apply`, 
-                            { code: appliedOffer.code },
-                            { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }}
-                        );
-                    } catch (err) {
-                        console.error('Failed to update offer usage:', err);
-                    }
-                }
-                // Trigger Confetti
                 confetti({
                     particleCount: 150,
                     spread: 70,
@@ -193,7 +177,6 @@ const ProductDetail = () => {
                     colors: ['#F97316', '#2D1B0D', '#fbbf24']
                 });
 
-                // --- Celebratory Success Alert ---
                 await Swal.fire({
                     title: `<span class="text-3xl font-black text-emerald-600 uppercase italic tracking-tighter">Congratulations!</span>`,
                     html: `
@@ -201,7 +184,7 @@ const ProductDetail = () => {
                             <div class="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center text-emerald-600 mx-auto mb-4">
                                 <FaShoppingBag size={40} />
                             </div>
-                            <p class="text-sm font-bold text-secondary">Your order <span class="text-emerald-600 font-black">#${response.data.bill.billNumber}</span> has been successfully placed!</p>
+                            <p class="text-sm font-bold text-secondary">Your order <span class="text-emerald-600 font-black">#${response.data.order.orderNumber}</span> has been successfully placed!</p>
                             <p class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Redirecting you to track your cravings...</p>
                         </div>
                     `,
@@ -220,6 +203,7 @@ const ProductDetail = () => {
             }
         } catch (error) {
             console.error('Order error:', error);
+            Swal.close(); // Close the "Placing Your Order..." modal
             toast.error(error.response?.data?.message || 'Failed to place order');
         } finally {
             setOrdering(false);
@@ -250,16 +234,27 @@ const ProductDetail = () => {
                 code: offerCode.toUpperCase(),
                 orderAmount: itemTotal,
                 productId: product._id
+            }, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
 
             if (response.data.success) {
+                // Check if already used by this user
+                if (response.data.offer.usedByCurrentUser) {
+                    toast.error('You have already used this offer!');
+                    setAppliedOffer(null);
+                    setOfferCode('');
+                    setValidatingOffer(false);
+                    return;
+                }
                 setAppliedOffer(response.data.offer);
                 toast.success(`Offer applied! You saved ₹${response.data.offer.discount}`);
             }
         } catch (error) {
-            const message = error.response?.data?.message || 'Invalid offer code';
+            const message = error.response?.data?.message || 'Invalid or already used offer code';
             toast.error(message);
             setAppliedOffer(null);
+            setOfferCode('');
         } finally {
             setValidatingOffer(false);
         }
@@ -269,6 +264,14 @@ const ProductDetail = () => {
         setAppliedOffer(null);
         setOfferCode('');
         toast.success('Offer removed');
+    };
+
+    const handleQuantityChange = (newQuantity) => {
+        if (appliedOffer && newQuantity > 1) {
+            toast.error('Offer can only be applied to 1 item');
+            return;
+        }
+        setQuantity(newQuantity);
     };
 
     const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
@@ -284,7 +287,6 @@ const ProductDetail = () => {
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 pb-10">
-            {/* Back Button */}
             <button
                 onClick={() => navigate(-1)}
                 className="flex items-center gap-2 text-secondary/60 hover:text-secondary font-black uppercase tracking-widest text-xs transition-colors group"
@@ -294,7 +296,6 @@ const ProductDetail = () => {
             </button>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                {/* Product Image Section */}
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -331,7 +332,6 @@ const ProductDetail = () => {
                     </div>
                 </motion.div>
 
-                {/* Product Info Section */}
                 <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -353,7 +353,6 @@ const ProductDetail = () => {
                             {product.detailedDescription || product.description || 'No detailed description available for this product.'}
                         </p>
 
-                        {/* Price Display */}
                         <div className="flex items-baseline gap-3 mt-2">
                             <span className="text-3xl font-black text-secondary">₹{effectivePrice}</span>
                             {discountPercent > 0 && (
@@ -367,7 +366,6 @@ const ProductDetail = () => {
                         </div>
                     </div>
 
-                    {/* Kitchen Info */}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <h4 className="text-xs font-black text-secondary/40 uppercase tracking-widest flex items-center gap-2">
@@ -425,14 +423,14 @@ const ProductDetail = () => {
                     <div className="flex items-center justify-between py-6 border-y border-primary/10">
                         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-primary/10 shadow-sm">
                             <button
-                                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
                                 className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 font-black text-xl flex items-center justify-center hover:bg-orange-100 active:scale-95 transition-all"
                             >
                                 -
                             </button>
                             <span className="w-8 text-center font-black text-lg text-secondary">{quantity}</span>
                             <button
-                                onClick={() => setQuantity(quantity + 1)}
+                                onClick={() => handleQuantityChange(quantity + 1)}
                                 className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 font-black text-xl flex items-center justify-center hover:bg-orange-100 active:scale-95 transition-all"
                             >
                                 +
@@ -444,7 +442,6 @@ const ProductDetail = () => {
                         </div>
                     </div>
 
-                    {/* Offer Code Section */}
                     <div className="bg-gradient-to-br from-primary/5 to-orange-50 p-6 rounded-2xl border border-primary/20">
                         <div className="flex items-center gap-2 mb-4">
                             <FaTag className="text-primary" />

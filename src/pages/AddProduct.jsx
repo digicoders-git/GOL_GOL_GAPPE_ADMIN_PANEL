@@ -36,6 +36,7 @@ const AddProduct = () => {
     const [currentId, setCurrentId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [activeSection, setActiveSection] = useState('basic');
+    const [pendingStockSubmit, setPendingStockSubmit] = useState(false);
     const [thumbnailFile, setThumbnailFile] = useState(null);
     const [thumbnailPreview, setThumbnailPreview] = useState('');
     const [galleryFiles, setGalleryFiles] = useState([]);
@@ -168,10 +169,10 @@ const AddProduct = () => {
 
         setSaving(true);
 
-        // Image already uploaded to Cloudinary, just use the URL
+        // Image stored locally as base64
         const formattedData = {
             ...formData,
-            // thumbnail already contains Cloudinary URL
+            // thumbnail contains base64 URL
             cuisineType: (formData.cuisineType || '').toString().split(',').map(item => item.trim()).filter(i => i),
             tags: (formData.tags || '').toString().split(',').map(item => item.trim()).filter(i => i),
             images: formData.images,
@@ -250,6 +251,7 @@ const AddProduct = () => {
         setIsEditing(false);
         setCurrentId(null);
         setActiveSection('basic');
+        setPendingStockSubmit(false);
     };
 
     const handleEdit = (product) => {
@@ -285,12 +287,17 @@ const AddProduct = () => {
         setGalleryPreviews(product.images || []);
         setVideoPreview(product.videoUrl || '');
         setIsEditing(true);
-        setCurrentId(product._id);
+        setCurrentId(product._id || product.id);
         setActiveSection('basic');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleDelete = (id) => {
+        if (!id) {
+            toast.error('Invalid product ID');
+            return;
+        }
+        
         Swal.fire({
             title: 'Delete Product?',
             text: "This product will be permanently removed.",
@@ -307,9 +314,12 @@ const AddProduct = () => {
                     if (response.data.success) {
                         toast.success('Product deleted');
                         fetchProducts();
+                    } else {
+                        toast.error(response.data.message || 'Failed to delete');
                     }
                 } catch (error) {
-                    toast.error('Failed to delete');
+                    console.error('Delete error:', error);
+                    toast.error(error.response?.data?.message || 'Failed to delete - product may not exist');
                 }
             }
         });
@@ -571,36 +581,15 @@ const AddProduct = () => {
                                                                 e.target.value = '';
                                                                 return;
                                                             }
-                                                            // Show loading state
                                                             setThumbnailPreview('loading');
-
-                                                            try {
-                                                                // Convert to base64 and upload to Cloudinary immediately
-                                                                const reader = new FileReader();
-                                                                const base64 = await new Promise((resolve) => {
-                                                                    reader.onloadend = () => resolve(reader.result);
-                                                                    reader.readAsDataURL(file);
-                                                                });
-
-                                                                // Upload to Cloudinary via API
-                                                                const uploadResponse = await api.post('/products/upload-image', {
-                                                                    image: base64,
-                                                                    folder: 'products/thumbnails'
-                                                                });
-
-                                                                if (uploadResponse.data.success) {
-                                                                    const cloudinaryUrl = uploadResponse.data.url;
-                                                                    setThumbnailPreview(cloudinaryUrl);
-                                                                    setFormData({ ...formData, thumbnail: cloudinaryUrl });
-                                                                    toast.success('Thumbnail uploaded to Cloudinary!');
-                                                                } else {
-                                                                    throw new Error('Upload failed');
-                                                                }
-                                                            } catch (error) {
-                                                                console.error('Upload error:', error);
-                                                                toast.error('Failed to upload image');
-                                                                setThumbnailPreview('');
-                                                            }
+                                                            const reader = new FileReader();
+                                                            reader.onload = (ev) => {
+                                                                const base64 = ev.target.result;
+                                                                setThumbnailPreview(base64);
+                                                                setFormData(prev => ({ ...prev, thumbnail: base64 }));
+                                                                toast.success('Thumbnail ready!');
+                                                            };
+                                                            reader.readAsDataURL(file);
                                                         }
                                                     }}
                                                 />
@@ -626,15 +615,15 @@ const AddProduct = () => {
                                                             >
                                                                 <MdClose size={14} />
                                                             </div>
-                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] p-1 rounded-b-xl text-center">
-                                                                Cloudinary ✓
+                                                            <div className="absolute bottom-0 left-0 right-0 bg-emerald-500 text-white text-[8px] p-1 rounded-b-xl text-center">
+                                                                Saved ✓
                                                             </div>
                                                         </div>
                                                     ) : (
                                                         <>
                                                             <MdCloudUpload size={40} className="text-zinc-300" />
                                                             <div className="text-center">
-                                                                <p className="text-secondary font-black">Click to upload to Cloudinary</p>
+                                                                <p className="text-secondary font-black">Click to upload image</p>
                                                                 <p className="text-[9px] text-zinc-400 uppercase tracking-widest mt-1">PNG, JPG up to 5MB</p>
                                                             </div>
                                                         </>
@@ -664,37 +653,14 @@ const AddProduct = () => {
                                                             });
 
                                                             if (validFiles.length > 0) {
-                                                                const uploadedUrls = [];
-                                                                const previews = [];
-
-                                                                for (const file of validFiles) {
-                                                                    try {
-                                                                        const reader = new FileReader();
-                                                                        const base64 = await new Promise((resolve) => {
-                                                                            reader.onloadend = () => resolve(reader.result);
-                                                                            reader.readAsDataURL(file);
-                                                                        });
-
-                                                                        const uploadResponse = await api.post('/products/upload-image', {
-                                                                            image: base64,
-                                                                            folder: 'products/gallery'
-                                                                        });
-
-                                                                        if (uploadResponse.data.success) {
-                                                                            uploadedUrls.push(uploadResponse.data.url);
-                                                                            previews.push(uploadResponse.data.url);
-                                                                        }
-                                                                    } catch (error) {
-                                                                        console.error('Upload error:', error);
-                                                                        toast.error(`Failed to upload ${file.name}`);
-                                                                    }
-                                                                }
-
-                                                                if (uploadedUrls.length > 0) {
-                                                                    setGalleryPreviews([...galleryPreviews, ...previews]);
-                                                                    setFormData({ ...formData, images: [...formData.images, ...uploadedUrls] });
-                                                                    toast.success(`${uploadedUrls.length} images uploaded!`);
-                                                                }
+                                                                const base64List = await Promise.all(validFiles.map(file => new Promise(resolve => {
+                                                                    const reader = new FileReader();
+                                                                    reader.onload = (ev) => resolve(ev.target.result);
+                                                                    reader.readAsDataURL(file);
+                                                                })));
+                                                                setGalleryPreviews(prev => [...prev, ...base64List]);
+                                                                setFormData(prev => ({ ...prev, images: [...prev.images, ...base64List] }));
+                                                                toast.success(`${base64List.length} images ready!`);
                                                             }
                                                         }
                                                     }}
@@ -753,25 +719,11 @@ const AddProduct = () => {
                                                             setVideoPreview('loading');
 
                                                             try {
-                                                                const reader = new FileReader();
-                                                                const base64 = await new Promise((resolve) => {
-                                                                    reader.onloadend = () => resolve(reader.result);
-                                                                    reader.readAsDataURL(file);
-                                                                });
-
-                                                                const uploadResponse = await api.post('/products/upload-video', {
-                                                                    video: base64,
-                                                                    folder: 'products/videos'
-                                                                });
-
-                                                                if (uploadResponse.data.success) {
-                                                                    const videoUrl = uploadResponse.data.url;
-                                                                    setVideoPreview(videoUrl);
-                                                                    setFormData({ ...formData, videoUrl });
-                                                                    toast.success('Video uploaded successfully!');
-                                                                } else {
-                                                                    throw new Error('Upload failed');
-                                                                }
+                                                                const blobUrl = URL.createObjectURL(file);
+                                                                
+                                                                setVideoPreview(blobUrl);
+                                                                setFormData({ ...formData, videoUrl: blobUrl });
+                                                                toast.success('Video saved locally!');
                                                             } catch (error) {
                                                                 console.error('Video upload error:', error);
                                                                 toast.error('Failed to upload video');
@@ -870,36 +822,87 @@ const AddProduct = () => {
                                         exit={{ opacity: 0, y: -10 }}
                                         className="grid grid-cols-1 gap-4"
                                     >
-                                        <div className="flex items-center gap-4 p-4 bg-zinc-50 rounded-xl">
-                                            <div className="flex-1">
-                                                <p className="text-xs font-black text-secondary uppercase tracking-tight">Active In Stock?</p>
-                                                <p className="text-[9px] text-zinc-400 uppercase">Turn off to temporarily hide from menu</p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, inStock: !formData.inStock })}
-                                                className={`w-12 h-6 rounded-full transition-all relative ${formData.inStock ? 'bg-emerald-500' : 'bg-zinc-200'}`}
-                                            >
-                                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.inStock ? 'right-1' : 'left-1'}`} />
-                                            </button>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Unit *</label>
-                                            <select
-                                                className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
-                                                value={formData.unit}
-                                                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                                            >
-                                                <option value="pcs">Pieces (pcs)</option>
-                                                <option value="kg">Kilogram (kg)</option>
-                                                <option value="g">Gram (g)</option>
-                                                <option value="l">Liter (l)</option>
-                                                <option value="ml">Milliliter (ml)</option>
-                                                <option value="plate">Plate</option>
-                                                <option value="bowl">Bowl</option>
-                                                <option value="box">Box</option>
-                                            </select>
-                                        </div>
+                                        {pendingStockSubmit ? (
+                                            <>
+                                                <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                                    <div>
+                                                        <p className="text-xs font-black text-emerald-600 uppercase tracking-tight">Ready to Save</p>
+                                                        <p className="text-[9px] text-emerald-500">Click confirm to save product</p>
+                                                    </div>
+                                                    <MdCheckCircle size={24} className="text-emerald-500" />
+                                                </div>
+                                                <div className="flex items-center gap-4 p-4 bg-zinc-50 rounded-xl">
+                                                    <div className="flex-1">
+                                                        <p className="text-xs font-black text-secondary uppercase tracking-tight">Active In Stock?</p>
+                                                        <p className="text-[9px] text-zinc-400 uppercase">Turn off to temporarily hide from menu</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, inStock: !formData.inStock })}
+                                                        className={`w-12 h-6 rounded-full transition-all relative ${formData.inStock ? 'bg-emerald-500' : 'bg-zinc-200'}`}
+                                                    >
+                                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.inStock ? 'right-1' : 'left-1'}`} />
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Unit *</label>
+                                                    <select
+                                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
+                                                        value={formData.unit}
+                                                        onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                                                    >
+                                                        <option value="pcs">Pieces (pcs)</option>
+                                                        <option value="kg">Kilogram (kg)</option>
+                                                        <option value="g">Gram (g)</option>
+                                                        <option value="l">Liter (l)</option>
+                                                        <option value="ml">Milliliter (ml)</option>
+                                                        <option value="plate">Plate</option>
+                                                        <option value="bowl">Bowl</option>
+                                                        <option value="box">Box</option>
+                                                    </select>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                                                    <div>
+                                                        <p className="text-xs font-black text-amber-600 uppercase tracking-tight">Review Mode</p>
+                                                        <p className="text-[9px] text-amber-500">Edit stock details below, then click Review & Save</p>
+                                                    </div>
+                                                    <MdAnalytics size={24} className="text-amber-500" />
+                                                </div>
+                                                <div className="flex items-center gap-4 p-4 bg-zinc-50 rounded-xl">
+                                                    <div className="flex-1">
+                                                        <p className="text-xs font-black text-secondary uppercase tracking-tight">Active In Stock?</p>
+                                                        <p className="text-[9px] text-zinc-400 uppercase">Turn off to temporarily hide from menu</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, inStock: !formData.inStock })}
+                                                        className={`w-12 h-6 rounded-full transition-all relative ${formData.inStock ? 'bg-emerald-500' : 'bg-zinc-200'}`}
+                                                    >
+                                                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.inStock ? 'right-1' : 'left-1'}`} />
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Unit *</label>
+                                                    <select
+                                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl py-3 px-4 font-bold outline-none focus:border-primary focus:bg-white transition-all text-sm"
+                                                        value={formData.unit}
+                                                        onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                                                    >
+                                                        <option value="pcs">Pieces (pcs)</option>
+                                                        <option value="kg">Kilogram (kg)</option>
+                                                        <option value="g">Gram (g)</option>
+                                                        <option value="l">Liter (l)</option>
+                                                        <option value="ml">Milliliter (ml)</option>
+                                                        <option value="plate">Plate</option>
+                                                        <option value="bowl">Bowl</option>
+                                                        <option value="box">Box</option>
+                                                    </select>
+                                                </div>
+                                            </>
+                                        )}
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -912,15 +915,27 @@ const AddProduct = () => {
                                 >
                                     <MdCancel size={18} /> Cancel
                                 </button>
-                                {activeSection === 'stock' ? (
+                                
+                                {/* Back button - show when not on basic tab */}
+                                {activeSection !== 'basic' && (
                                     <button
-                                        type="submit"
-                                        disabled={saving}
-                                        className={`flex-[2] bg-secondary text-primary font-black py-4 rounded-2xl shadow-xl shadow-secondary/20 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-black active:scale-[0.98] cursor-pointer'}`}
+                                        type="button"
+                                        onClick={() => {
+                                            const sections = ['basic', 'pricing', 'media', 'nutrition', 'stock'];
+                                            const currentIndex = sections.indexOf(activeSection);
+                                            if (currentIndex > 0) {
+                                                setActiveSection(sections[currentIndex - 1]);
+                                                setPendingStockSubmit(false);
+                                            }
+                                        }}
+                                        className="flex-1 bg-zinc-100 text-zinc-600 font-black py-4 rounded-2xl hover:bg-zinc-200 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
                                     >
-                                        <MdSave size={18} /> {saving ? 'Saving...' : isEditing ? 'Update Master Record' : 'Save To Global Catalog'}
+                                        <MdArrowForward size={18} className="rotate-180" /> Back
                                     </button>
-                                ) : (
+                                )}
+                                
+                                {/* Next button - show when not on stock tab OR when in stock but not pending submit */}
+                                {activeSection !== 'stock' ? (
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -928,11 +943,28 @@ const AddProduct = () => {
                                             const currentIndex = sections.indexOf(activeSection);
                                             if (currentIndex < sections.length - 1) {
                                                 setActiveSection(sections[currentIndex + 1]);
+                                                setPendingStockSubmit(false);
                                             }
                                         }}
                                         className="flex-[2] bg-secondary text-primary font-black py-4 rounded-2xl shadow-xl shadow-secondary/20 hover:bg-black transition-all active:scale-[0.98] text-xs uppercase tracking-widest flex items-center justify-center gap-2"
                                     >
                                         Next <MdArrowForward size={18} />
+                                    </button>
+                                ) : !pendingStockSubmit ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPendingStockSubmit(true)}
+                                        className="flex-[2] bg-secondary text-primary font-black py-4 rounded-2xl shadow-xl shadow-secondary/20 hover:bg-black transition-all active:scale-[0.98] text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                                    >
+                                        <MdSave size={18} /> Review & Save
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="submit"
+                                        disabled={saving}
+                                        className={`flex-[2] bg-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-500/20 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-600 active:scale-[0.98] cursor-pointer'}`}
+                                    >
+                                        <MdSave size={18} /> {saving ? 'Saving...' : isEditing ? 'Update Now' : 'Confirm Save'}
                                     </button>
                                 )}
                             </div>
@@ -988,7 +1020,7 @@ const AddProduct = () => {
                                             </div>
                                             <div className="flex gap-2">
                                                 <button onClick={() => handleEdit(product)} className="p-2 bg-blue-50 text-blue-500 rounded-lg transition-colors hover:bg-blue-100"><MdEdit size={16} /></button>
-                                                <button onClick={() => handleDelete(product._id)} className="p-2 bg-red-50 text-red-500 rounded-lg transition-colors hover:bg-red-100"><MdDelete size={16} /></button>
+                                                <button onClick={() => handleDelete(product._id || product.id)} className="p-2 bg-red-50 text-red-500 rounded-lg transition-colors hover:bg-red-100"><MdDelete size={16} /></button>
                                             </div>
                                         </div>
                                     </div>

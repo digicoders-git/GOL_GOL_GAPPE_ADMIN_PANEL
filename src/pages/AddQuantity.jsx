@@ -50,15 +50,19 @@ const AddQuantity = () => {
             ]);
 
             if (logsRes.status === 'fulfilled' && logsRes.value.data.success) {
-                const logs = (logsRes.value.data.logs || []).map(log => ({
-                    id: log._id,
-                    name: log.product?.name || 'Unknown',
-                    category: log.product?.category || 'General',
-                    quantity: log.quantity,
-                    unit: log.product?.unit || 'unit',
-                    date: new Date(log.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
-                    status: 'completed'
-                }));
+                // Filter to only show 'ADD' type logs for the "Add Stock" page
+                const logs = (logsRes.value.data.logs || [])
+                    .filter(log => log.type === 'ADD')
+                    .map(log => ({
+                        id: log._id,
+                        name: log.product?.name || 'Unknown',
+                        category: log.product?.category || 'General',
+                        quantity: log.quantity,
+                        unit: log.product?.unit || 'unit',
+                        thumbnail: log.product?.thumbnail || null,
+                        date: new Date(log.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+                        status: 'completed'
+                    }));
                 setRecentEntries(logs);
             }
 
@@ -272,14 +276,23 @@ const AddQuantity = () => {
                                                 filteredProducts.map((product) => (
                                                     <div
                                                         key={product._id}
-                                                        className="p-3 hover:bg-zinc-50 cursor-pointer flex items-center justify-between group border-b border-zinc-50 last:border-0"
+                                                        className="p-3 hover:bg-zinc-50 cursor-pointer flex items-center gap-3 group border-b border-zinc-50 last:border-0"
                                                         onClick={() => handleProductSelect(product)}
                                                     >
-                                                        <div>
-                                                            <p className="font-black text-xs uppercase text-secondary">{product.name}</p>
+                                                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-100 shrink-0">
+                                                            {product.thumbnail ? (
+                                                                <img src={product.thumbnail} alt={product.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-zinc-400 font-black text-xs">
+                                                                    {product.name?.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-black text-xs uppercase text-secondary truncate">{product.name}</p>
                                                             <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">{product.category}</p>
                                                         </div>
-                                                        <span className="bg-primary/10 text-primary text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic">
+                                                        <span className="bg-primary/10 text-primary text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shrink-0">
                                                             {product.unit}
                                                         </span>
                                                     </div>
@@ -314,6 +327,7 @@ const AddQuantity = () => {
                                 <div className="space-y-2">
                                     <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest ml-1">Quantity</label>
                                     <input
+                                    id='quantity'
                                         type="number"
                                         required
                                         min="0"
@@ -416,8 +430,12 @@ const AddQuantity = () => {
                                     >
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3 flex-1">
-                                                <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center text-primary font-black border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-sm">
-                                                    {entry.name?.charAt(0) || '?'}
+                                                <div className="w-10 h-10 bg-zinc-100 rounded-xl overflow-hidden flex items-center justify-center border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-sm">
+                                                    {entry.thumbnail ? (
+                                                        <img src={entry.thumbnail} alt={entry.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-primary font-black">{entry.name?.charAt(0) || '?'}</span>
+                                                    )}
                                                 </div>
                                                 <div className="flex-1">
                                                     <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{entry.name}</h4>

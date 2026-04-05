@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { MdRestaurant, MdInventory, MdShoppingCart, MdTrendingUp, MdPeople, MdHistory, MdArrowForward, MdCheckCircle } from 'react-icons/md';
 import toast from 'react-hot-toast';
+import Highcharts from 'highcharts';
+import HighchartsReact from 'highcharts-react-official';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const KitchenAdminDashboard = () => {
     const [kitchen, setKitchen] = useState(null);
@@ -11,6 +13,7 @@ const KitchenAdminDashboard = () => {
     const [inventory, setInventory] = useState([]);
     const [transfers, setTransfers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [revenueData, setRevenueData] = useState({ categories: [], series: [] });
 
     useEffect(() => {
         fetchKitchenData();
@@ -23,27 +26,49 @@ const KitchenAdminDashboard = () => {
             const user = JSON.parse(localStorage.getItem('user'));
 
             // Fetch kitchen info
-            const kitchenRes = await fetch(`${API_URL}/kitchens`, {
+            const kitchenRes = await fetch(`${API_URL}/api/kitchens`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const kitchenData = await kitchenRes.json();
             const userId = user.id || user._id; // Handle both id and _id safely
-            const myKitchen = kitchenData.kitchens?.find(k => 
+            const myKitchen = kitchenData.kitchens?.find(k =>
                 k.admin?._id?.toString() === userId || k.admin?.toString() === userId
             );
             setKitchen(myKitchen);
 
             // Fetch orders
-            const ordersRes = await fetch(`${API_URL}/billing/kitchen-orders`, {
+            const ordersRes = await fetch(`${API_URL}/api/billing/kitchen-orders`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const ordersData = await ordersRes.json();
             if (ordersData.success) {
-                setOrders(ordersData.bills);
+                const fetchedOrders = ordersData.bills || [];
+                setOrders(fetchedOrders);
+
+                // Calculate last 7 days revenue
+                const last7Days = Array.from({ length: 7 }, (_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - (6 - i));
+                    return d;
+                });
+
+                const dailyRevenue = last7Days.map(day => {
+                    const dayStr = day.toDateString();
+                    return fetchedOrders
+                        .filter(o => new Date(o.createdAt).toDateString() === dayStr)
+                        .reduce((sum, o) => sum + (parseFloat(o.totalAmount) || parseFloat(o.total) || 0), 0);
+                });
+
+                const dayLabels = last7Days.map(d => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }));
+
+                setRevenueData({
+                    categories: dayLabels,
+                    series: [{ name: 'Revenue (₹)', data: dailyRevenue, color: '#F97316' }]
+                });
             }
 
             // Fetch inventory
-            const inventoryRes = await fetch(`${API_URL}/products/user-inventory`, {
+            const inventoryRes = await fetch(`${API_URL}/api/products/user-inventory`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const inventoryData = await inventoryRes.json();
@@ -52,7 +77,7 @@ const KitchenAdminDashboard = () => {
             }
 
             // Fetch stock transfers
-            const transferRes = await fetch(`${API_URL}/products/transfer-history`, {
+            const transferRes = await fetch(`${API_URL}/api/products/transfer-history`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const transferData = await transferRes.json();
@@ -88,6 +113,40 @@ const KitchenAdminDashboard = () => {
     const pendingOrders = orders.filter(o => o.status === 'Assigned_to_Kitchen').length;
     const processingOrders = orders.filter(o => o.status === 'Processing').length;
     const completedOrders = orders.filter(o => o.status === 'Completed').length;
+
+    const revenueChartOptions = {
+        chart: { type: 'area', backgroundColor: 'transparent', height: 280 },
+        title: { text: '' },
+        xAxis: {
+            categories: revenueData.categories,
+            labels: { style: { fontWeight: 'bold', color: '#64748b', fontSize: '10px' } }
+        },
+        yAxis: {
+            title: { text: 'Revenue (₹)', style: { fontWeight: 'bold' } },
+            labels: {
+                style: { fontWeight: 'bold', color: '#64748b' },
+                formatter: function() { return '₹' + this.value.toLocaleString('en-IN'); }
+            }
+        },
+        tooltip: {
+            formatter: function() {
+                return '<b>' + this.x + '</b><br/>Revenue: <b>₹' + this.y.toLocaleString('en-IN', {minimumFractionDigits: 2}) + '</b>';
+            }
+        },
+        series: revenueData.series,
+        credits: { enabled: false },
+        plotOptions: {
+            area: {
+                fillColor: {
+                    linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+                    stops: [[0, 'rgba(249, 115, 22, 0.3)'], [1, 'rgba(249, 115, 22, 0)']]
+                },
+                marker: { radius: 4, fillColor: '#F97316' },
+                lineWidth: 3,
+                lineColor: '#F97316'
+            }
+        }
+    };
 
     return (
         <div className="max-w-[1400px] mx-auto space-y-6 p-4 lg:p-6">
@@ -166,12 +225,33 @@ const KitchenAdminDashboard = () => {
                             <MdInventory size={24} />
                         </div>
                         <div>
-                            <p className="text-xs text-zinc-500 font-bold">Stock Items</p>
-                            <p className="text-2xl font-black text-secondary">{inventory.length}</p>
+                            <p className="text-xs text-zinc-500 font-bold">Total Assigned</p>
+                            <p className="text-2xl font-black text-secondary">
+                                {transfers.reduce((sum, t) => sum + (t.quantity || 0), 0)}
+                            </p>
                         </div>
                     </div>
                 </motion.div>
             </div>
+
+            {/* Revenue Chart */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white rounded-2xl border border-zinc-100 shadow-lg p-6"
+            >
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600">
+                        <MdTrendingUp size={20} />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-black text-secondary">Revenue Trend</h2>
+                        <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Last 7 Days</p>
+                    </div>
+                </div>
+                <HighchartsReact highcharts={Highcharts} options={revenueChartOptions} />
+            </motion.div>
 
             {/* Stock Assignments */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-lg overflow-hidden">
@@ -289,20 +369,45 @@ const KitchenAdminDashboard = () => {
             {/* Current Inventory */}
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-lg p-6">
                 <h2 className="text-xl font-black text-secondary mb-4">Current Inventory</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {inventory.map((item) => (
-                        <div key={item._id} className="p-4 bg-zinc-50 rounded-xl">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                    <MdInventory />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {inventory.map((item) => {
+                        const totalAssigned = transfers
+                            .filter(t => t.product?._id === item.product?._id || t.product === item.product?._id)
+                            .reduce((sum, t) => sum + (t.quantity || 0), 0);
+                        const remaining = item.quantity || 0;
+                        const used = Math.max(0, totalAssigned - remaining);
+
+                        return (
+                            <div key={item._id} className="p-4 bg-zinc-50 rounded-xl border border-zinc-100 group hover:border-primary/30 transition-all">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                                        <MdInventory />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-start">
+                                            <p className="font-bold text-secondary text-sm uppercase tracking-tight">{item.product?.name}</p>
+                                            <span className="text-[8px] font-black bg-white px-2 py-0.5 rounded-full border border-zinc-100 text-zinc-400">{item.product?.unit}</span>
+                                        </div>
+                                        <p className="text-[10px] text-zinc-400 font-bold uppercase">{item.product?.category}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="font-bold text-secondary">{item.product?.name}</p>
-                                    <p className="text-xs text-zinc-500">Qty: {item.quantity} {item.product?.unit}</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="bg-white p-2 rounded-lg border border-zinc-100 text-center shadow-sm">
+                                        <p className="text-[7px] font-black text-zinc-400 uppercase tracking-widest mb-1 leading-none">Assigned</p>
+                                        <p className="text-xs font-black text-emerald-600 leading-none">{totalAssigned}</p>
+                                    </div>
+                                    <div className="bg-white p-2 rounded-lg border border-zinc-100 text-center shadow-sm">
+                                        <p className="text-[7px] font-black text-zinc-400 uppercase tracking-widest mb-1 leading-none">Used</p>
+                                        <p className="text-xs font-black text-red-600 leading-none">{used}</p>
+                                    </div>
+                                    <div className="bg-white p-2 rounded-lg border border-zinc-100 text-center shadow-sm">
+                                        <p className="text-[7px] font-black text-zinc-400 uppercase tracking-widest mb-1 leading-none">Remain</p>
+                                        <p className="text-xs font-black text-blue-600 leading-none">{remaining}</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         </div>

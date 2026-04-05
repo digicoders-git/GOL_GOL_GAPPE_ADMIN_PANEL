@@ -26,7 +26,7 @@ import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import Highcharts3D from 'highcharts/highcharts-3d';
 import toast from 'react-hot-toast';
-import { getProducts, getBills, getKitchens, getUserInventory } from '../utils/api';
+import { getBills, getUserInventory, getMyKitchen, getMyKitchenOrders, getKitchenOrders, getAllOrders, getKitchens } from '../utils/api';
 import DashboardSkeleton from '../components/DashboardSkeleton';
 
 // Initialize 3D module
@@ -58,7 +58,7 @@ const Dashboard = () => {
             { title: 'Add Kitchen', icon: <MdRestaurant />, color: 'text-emerald-600', bg: 'bg-emerald-50', path: '/add-kitchen', description: 'Register new node' },
         ],
         billing_admin: [
-            { title: 'Add Billing', icon: <MdReceipt />, color: 'text-blue-600', bg: 'bg-blue-50', path: '/add-billing', description: 'Generate customer bill' },
+            { title: 'Add Billing', icon: <MdReceipt />, color: 'text-blue-600', bg: 'bg-blue-50', path: '/billing-management', description: 'Generate customer bill' },
             { title: 'Assign to Kitchen', icon: <MdRestaurant />, color: 'text-emerald-600', bg: 'bg-emerald-50', path: '/billing-management', description: 'Manage order flow' },
             { title: 'My Inventory', icon: <MdInventory />, color: 'text-purple-600', bg: 'bg-purple-50', path: '/my-inventory', description: 'Check your stock' },
             { title: 'Security', icon: <MdAssessment />, color: 'text-orange-600', bg: 'bg-orange-50', path: '/change-password', description: 'Update profile' },
@@ -95,7 +95,225 @@ const Dashboard = () => {
         try {
             setLoading(true);
 
-            // Single dashboard API call instead of multiple calls
+            // For billing_admin and kitchen_admin, use direct API calls
+            if (role === 'billing_admin') {
+                let kitchenRes, ordersRes;
+                try {
+                    [kitchenRes, ordersRes] = await Promise.all([
+                        getMyKitchen(),
+                        getMyKitchenOrders()
+                    ]);
+                } catch (err) {
+                    console.error('API Error:', err);
+                }
+
+                console.log('Kitchen Response:', kitchenRes?.data);
+                console.log('Orders Response:', ordersRes?.data);
+
+                // Get products from kitchen's assignedProducts
+                let products = [];
+                if (kitchenRes?.data?.success && kitchenRes.data.kitchen?.assignedProducts) {
+                    products = kitchenRes.data.kitchen.assignedProducts
+                        .filter(ap => ap.product)
+                        .map(ap => ({
+                            ...ap.product,
+                            assigned: ap.assigned || 0,
+                            used: ap.used || 0,
+                            remaining: (ap.assigned || 0) - (ap.used || 0)
+                        }));
+                }
+
+                // Get orders - if kitchen-specific returns empty, try general billing API
+                let allOrders = [];
+                if (ordersRes?.data?.success && (ordersRes.data.orders?.length > 0 || ordersRes.data.bills?.length > 0)) {
+                    allOrders = ordersRes.data.orders || ordersRes.data.bills || [];
+                } else {
+                    console.log('Kitchen orders empty, fetching all bills...');
+                    try {
+                        const allBillsRes = await getBills();
+                        console.log('All Bills response:', allBillsRes?.data);
+                        allOrders = allBillsRes?.data?.bills || [];
+                    } catch (err) {
+                        console.error('Fallback bills error:', err);
+                    }
+                }
+
+                const totalAssigned = products.reduce((sum, p) => sum + (p.assigned || 0), 0);
+                const totalUsed = products.reduce((sum, p) => sum + (p.used || 0), 0);
+                const totalRemaining = totalAssigned - totalUsed;
+
+                console.log('Stats:', { totalAssigned, totalUsed, totalRemaining });
+
+                setStats([
+                    { title: 'Total Assigned', value: `${totalAssigned} Units`, icon: <MdAdd />, color: 'text-blue-600', bg: 'bg-blue-50', trend: 'Live', isUp: true, rawValue: totalAssigned },
+                    { title: 'Total Used', value: `${totalUsed} Units`, icon: <MdTrendingUp />, color: 'text-red-600', bg: 'bg-red-50', trend: 'Live', isUp: false, rawValue: totalUsed },
+                    { title: 'Total Remaining', value: `${totalRemaining} Units`, icon: <MdInventory />, color: 'text-emerald-600', bg: 'bg-emerald-50', trend: 'Live', isUp: true, rawValue: totalRemaining },
+                    { title: 'Alerts', value: '0', icon: <MdWarning />, color: 'text-orange-600', bg: 'bg-orange-50', trend: 'Items', isUp: false, rawValue: 0 },
+                ]);
+
+                // Get recent orders
+                console.log('Orders data:', ordersRes?.data);
+                
+                const mappedOrders = allOrders.slice(0, 6).map(b => ({
+                    id: b.billNumber || b.orderNumber || b._id?.slice(-8) || 'N/A',
+                    customer: b.customer?.name || (typeof b.customer === 'string' ? b.customer : 'Walk-in'),
+                    items: (b.items?.length || 0) + ' Items',
+                    total: `₹${b.totalAmount || b.total || 0}`,
+                    time: b.createdAt ? new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '',
+                    status: (b.status || 'Pending').replace(/_/g, ' ')
+                }));
+                
+                console.log('Mapped recent orders:', mappedOrders);
+                setRecentOrders(mappedOrders);
+
+                // Calculate chart data for billing_admin
+                const dailyRevenue = {};
+                allOrders.forEach(order => {
+                    if (order.status === 'Completed') {
+                        const date = new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                        dailyRevenue[date] = (dailyRevenue[date] || 0) + (order.totalAmount || order.total || 0);
+                    }
+                });
+
+                const last7Days = [];
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    last7Days.push(d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }));
+                }
+
+                setChartsData({
+                    revenue: {
+                        categories: last7Days,
+                        series: [{ name: 'Revenue', data: last7Days.map(d => dailyRevenue[d] || 0), color: '#F97316' }]
+                    },
+                    kitchen: {
+                        categories: ['Assigned', 'Used', 'Remaining'],
+                        series: [{ name: 'Stock', data: [totalAssigned, totalUsed, totalRemaining], color: '#F97316' }]
+                    },
+                    stock: {
+                        series: [{
+                            name: 'Stock',
+                            colorByPoint: true,
+                            data: [
+                                { name: 'Assigned', y: totalAssigned, color: '#3b82f6' },
+                                { name: 'Used', y: totalUsed, color: '#ef4444' },
+                                { name: 'Remaining', y: totalRemaining, color: '#10b981' }
+                            ]
+                        }]
+                    }
+                });
+
+                setLoading(false);
+                return;
+            }
+
+            if (role === 'kitchen_admin') {
+                let invRes, ordersRes;
+                try {
+                    [invRes, ordersRes] = await Promise.all([
+                        getUserInventory(),
+                        getKitchenOrders()
+                    ]);
+                } catch (err) {
+                    console.error('API Error:', err);
+                }
+
+                console.log('Inventory Response:', invRes?.data);
+                console.log('Orders Response:', ordersRes?.data);
+
+                let products = [];
+                if (invRes?.data?.success && invRes.data.inventory) {
+                    products = invRes.data.inventory;
+                }
+
+                const totalAssigned = products.reduce((sum, p) => sum + (p.assigned || 0), 0);
+                const totalUsed = products.reduce((sum, p) => sum + (p.used || 0), 0);
+                const totalRemaining = products.reduce((sum, p) => sum + (p.remaining || 0), 0);
+
+                console.log('Stats:', { totalAssigned, totalUsed, totalRemaining });
+
+                setStats([
+                    { title: 'Total Assigned', value: `${totalAssigned} Units`, icon: <MdAdd />, color: 'text-blue-600', bg: 'bg-blue-50', trend: 'Live', isUp: true, rawValue: totalAssigned },
+                    { title: 'Total Used', value: `${totalUsed} Units`, icon: <MdTrendingUp />, color: 'text-red-600', bg: 'bg-red-50', trend: 'Live', isUp: false, rawValue: totalUsed },
+                    { title: 'Total Remaining', value: `${totalRemaining} Units`, icon: <MdInventory />, color: 'text-emerald-600', bg: 'bg-emerald-50', trend: 'Live', isUp: true, rawValue: totalRemaining },
+                    { title: 'Alerts', value: '0', icon: <MdWarning />, color: 'text-orange-600', bg: 'bg-orange-50', trend: 'Items', isUp: false, rawValue: 0 },
+                ]);
+
+                // Get recent orders - if kitchen-specific returns empty, try general billing API
+                console.log('Kitchen Orders data:', ordersRes?.data);
+                
+                let allOrders = [];
+                if (ordersRes?.data?.success && (ordersRes.data.orders?.length > 0 || ordersRes.data.bills?.length > 0)) {
+                    allOrders = ordersRes.data.orders || ordersRes.data.bills || [];
+                } else {
+                    console.log('Kitchen orders empty, fetching all bills...');
+                    try {
+                        const allBillsRes = await getBills();
+                        console.log('All Bills response:', allBillsRes?.data);
+                        allOrders = allBillsRes?.data?.bills || [];
+                    } catch (err) {
+                        console.error('Fallback bills error:', err);
+                    }
+                }
+                
+                console.log('Kitchen mapped orders:', allOrders);
+
+                const mappedOrders = allOrders.slice(0, 6).map(b => ({
+                    id: b.billNumber || b.orderNumber || b._id?.slice(-8) || 'N/A',
+                    customer: b.customer?.name || (typeof b.customer === 'string' ? b.customer : 'Walk-in'),
+                    items: (b.items?.length || 0) + ' Items',
+                    total: `₹${b.totalAmount || b.total || 0}`,
+                    time: b.createdAt ? new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '',
+                    status: (b.status || 'Pending').replace(/_/g, ' ')
+                }));
+                
+                console.log('Kitchen recent orders:', mappedOrders);
+                setRecentOrders(mappedOrders);
+
+                // Calculate chart data for kitchen_admin
+                const dailyRevenue = {};
+                allOrders.forEach(order => {
+                    if (order.status === 'Completed') {
+                        const date = new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                        dailyRevenue[date] = (dailyRevenue[date] || 0) + (order.totalAmount || order.total || 0);
+                    }
+                });
+
+                const last7Days = [];
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    last7Days.push(d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }));
+                }
+
+                setChartsData({
+                    revenue: {
+                        categories: last7Days,
+                        series: [{ name: 'Revenue', data: last7Days.map(d => dailyRevenue[d] || 0), color: '#F97316' }]
+                    },
+                    kitchen: {
+                        categories: ['Assigned', 'Used', 'Remaining'],
+                        series: [{ name: 'Stock', data: [totalAssigned, totalUsed, totalRemaining], color: '#F97316' }]
+                    },
+                    stock: {
+                        series: [{
+                            name: 'Stock',
+                            colorByPoint: true,
+                            data: [
+                                { name: 'Assigned', y: totalAssigned, color: '#3b82f6' },
+                                { name: 'Used', y: totalUsed, color: '#ef4444' },
+                                { name: 'Remaining', y: totalRemaining, color: '#10b981' }
+                            ]
+                        }]
+                    }
+                });
+
+                setLoading(false);
+                return;
+            }
+
+            // For super_admin and admin, use dashboard API
             const dashboardRes = await fetch(`${API_URL}/api/auth/dashboard`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -106,23 +324,14 @@ const Dashboard = () => {
             if (dashboardRes.success) {
                 const { stats, recentBills, products, kitchens } = dashboardRes;
 
-                // Update stats quickly
-                setStats(prev => {
-                    const newStats = [...prev];
-                    if (role === 'kitchen_admin') {
-                        newStats[0].value = recentBills.filter(b => b.status === 'Processing').length.toString();
-                        newStats[1].value = recentBills.filter(b => b.status === 'Ready').length.toString();
-                    } else {
-                        newStats[0].value = `₹${stats.todayRevenue?.toLocaleString() || 0}`;
-                        newStats[1].value = stats.totalBills?.toString() || '0';
-                    }
-                    newStats[2].value = (role === 'super_admin' ? stats.totalKitchens : products.length).toString();
-                    newStats[3].value = stats.lowStockCount?.toString() || '0';
-                    return newStats;
-                });
+                setStats([
+                    { title: 'Total Revenue', value: `₹${stats.todayRevenue?.toLocaleString() || 0}`, icon: <MdAttachMoney />, color: 'text-blue-600', bg: 'bg-blue-50', trend: 'Today', isUp: true, rawValue: stats.todayRevenue },
+                    { title: 'Total Orders', value: stats.totalBills?.toString() || '0', icon: <MdShoppingCart />, color: 'text-orange-600', bg: 'bg-orange-50', trend: 'Live', isUp: true, rawValue: stats.totalBills },
+                    { title: 'Active Kitchens', value: stats.totalKitchens?.toString() || '0', icon: <MdRestaurant />, color: 'text-purple-600', bg: 'bg-purple-50', trend: 'Total', isUp: true, rawValue: stats.totalKitchens },
+                    { title: 'Low Stock', value: stats.lowStockCount?.toString() || '0', icon: <MdWarning />, color: 'text-red-600', bg: 'bg-red-50', trend: 'Items', isUp: false, rawValue: stats.lowStockCount },
+                ]);
 
-                // Map recent orders
-                const mappedOrders = recentBills.map(b => ({
+                const mappedOrders = recentBills.slice(0, 6).map(b => ({
                     id: b.id || b.billNumber || b.orderNumber || 'N/A',
                     customer: b.customer?.name || 'Walk-in',
                     items: (b.items?.length || 0) + ' Items',
@@ -132,27 +341,43 @@ const Dashboard = () => {
                 }));
                 setRecentOrders(mappedOrders);
 
-                // Use real weekly revenue data from API
-                const weeklyData = stats.weeklyRevenue || [];
-                const revCategories = weeklyData.map(d => d.date);
-                const revData = weeklyData.map(d => d.revenue);
+                // Fetch all orders and kitchens for Kitchen Efficiency chart
+                let allOrders = [];
+                let allKitchens = [];
+                try {
+                    const [ordersRes, kitchensRes] = await Promise.all([
+                        getAllOrders(),
+                        getKitchens()
+                    ]);
+                    allOrders = ordersRes?.data?.orders || [];
+                    allKitchens = kitchensRes?.data?.kitchens || [];
+                } catch (err) {
+                    console.error('Error fetching orders/kitchens:', err);
+                }
+
+                // Calculate orders per kitchen
+                const kitchenOrderCounts = {};
+                allOrders.forEach(order => {
+                    const kitchenId = order.kitchen?._id || order.kitchen;
+                    if (kitchenId) {
+                        kitchenOrderCounts[kitchenId] = (kitchenOrderCounts[kitchenId] || 0) + 1;
+                    }
+                });
+
+                const topKitchens = allKitchens.slice(0, 4);
+                const kitchenNames = topKitchens.map(k => k.name || 'Kitchen');
+                const kitchenOrderData = topKitchens.map(k => kitchenOrderCounts[k._id] || 0);
+
+                console.log('Kitchen Order Data:', { kitchenNames, kitchenOrderData });
 
                 setChartsData({
                     revenue: {
-                        categories: revCategories,
-                        series: [{
-                            name: 'Revenue',
-                            data: revData,
-                            color: '#F97316'
-                        }]
+                        categories: stats.weeklyRevenue?.map(d => d.date) || [],
+                        series: [{ name: 'Revenue', data: stats.weeklyRevenue?.map(d => d.revenue) || [], color: '#F97316' }]
                     },
                     kitchen: {
-                        categories: kitchens.slice(0, 4).map(k => k.name || 'Kitchen'),
-                        series: [{
-                            name: 'Orders',
-                            data: kitchens.slice(0, 4).map(() => 0),
-                            color: '#F97316'
-                        }]
+                        categories: kitchenNames,
+                        series: [{ name: 'Orders', data: kitchenOrderData, color: '#F97316' }]
                     },
                     stock: {
                         series: [{
@@ -166,32 +391,10 @@ const Dashboard = () => {
                         }]
                     }
                 });
-            } else {
-                // Fallback to individual API calls if dashboard API fails
-                const [prodRes, billRes] = await Promise.all([
-                    (role === 'super_admin' || role === 'admin')
-                        ? getProducts().catch(() => ({ data: { success: false, products: [] } }))
-                        : getUserInventory().catch(() => ({ data: { success: false, inventory: [] } })),
-                    getBills().catch(() => ({ data: { success: false, bills: [] } }))
-                ]);
-
-                // Process fallback data (simplified)
-                if (billRes.data?.success) {
-                    const bills = billRes.data.bills || [];
-                    const mappedOrders = bills.slice(0, 6).map(b => ({
-                        id: b.billNumber || 'N/A',
-                        customer: b.customer?.name || 'Walk-in',
-                        items: (b.items?.length || 0) + ' Items',
-                        total: `₹${b.totalAmount || 0}`,
-                        time: new Date(b.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-                        status: (b.status || 'Pending').replace(/_/g, ' ')
-                    }));
-                    setRecentOrders(mappedOrders);
-                }
             }
+
         } catch (error) {
             console.error('Dashboard fetch error:', error);
-            // Set default values on error
             setStats(prev => prev.map(stat => ({ ...stat, value: '0' })));
             setRecentOrders([]);
         } finally {
@@ -533,29 +736,39 @@ const Dashboard = () => {
                                 </div>
 
                                 <div className="max-h-[350px] overflow-y-auto">
-                                    {recentOrders.map((order, i) => (
-                                        <div key={i} className="p-4 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors cursor-pointer">
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-xs font-black text-secondary">{order.id}</span>
-                                                        <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase ${order.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
-                                                            }`}>
-                                                            {order.status}
-                                                        </span>
+                                    {loading ? (
+                                        <div className="p-8 text-center">
+                                            <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-2"></div>
+                                            <p className="text-xs text-zinc-400">Loading orders...</p>
+                                        </div>
+                                    ) : recentOrders.length === 0 ? (
+                                        <div className="p-8 text-center">
+                                            <p className="text-xs text-zinc-400">No orders found</p>
+                                        </div>
+                                    ) : (
+                                        recentOrders.map((order, i) => (
+                                            <div key={i} className="p-4 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors cursor-pointer">
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-xs font-black text-secondary">{order.id}</span>
+                                                            <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase ${order.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                                {order.status}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[9px] font-bold text-zinc-600">{order.customer}</p>
+                                                        <p className="text-[8px] text-zinc-400 mt-1">{order.items}</p>
                                                     </div>
-                                                    <p className="text-[9px] font-bold text-zinc-600">{order.customer}</p>
-                                                    <p className="text-[8px] text-zinc-400 mt-1">{order.items}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm font-black text-secondary">{order.total}</p>
-                                                    <p className="text-[7px] text-zinc-400 flex items-center gap-1 mt-1">
-                                                        <MdAccessTime size={10} /> {order.time}
-                                                    </p>
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-black text-secondary">{order.total}</p>
+                                                        <p className="text-[7px] text-zinc-400 flex items-center gap-1 mt-1">
+                                                            <MdAccessTime size={10} /> {order.time}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </motion.div>

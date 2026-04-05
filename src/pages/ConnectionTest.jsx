@@ -9,7 +9,7 @@ const ConnectionTest = () => {
     }, []);
 
     const testConnection = async () => {
-        const API_URL = 'http://localhost:5000';
+        const API_URL = 'http://localhost:4000';
 
         try {
             console.log('🔄 Testing backend connection...');

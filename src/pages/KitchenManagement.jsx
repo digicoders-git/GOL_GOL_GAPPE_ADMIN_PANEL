@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import io from 'socket.io-client';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import Highcharts3D from 'highcharts/highcharts-3d';
@@ -51,6 +52,44 @@ const KitchenManagement = () => {
     });
     const [selectedKitchenInventory, setSelectedKitchenInventory] = useState(null); // Added this state
     const [inventoryLoading, setInventoryLoading] = useState(false);
+    const [lastUpdate, setLastUpdate] = useState(null);
+    const socketRef = useRef(null);
+    const refreshTimeoutRef = useRef(null);
+
+    // Initialize socket for real-time updates
+    useEffect(() => {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const socket = io(API_URL, {
+            auth: {
+                token: localStorage.getItem('token')
+            }
+        });
+        socketRef.current = socket;
+
+        // Listen for stock updates
+        socket.on('stock-updated', (data) => {
+            console.log('Stock updated received:', data);
+            setLastUpdate(new Date());
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = setTimeout(() => {
+                fetchFleetData();
+            }, 500);
+        });
+
+        socket.on('kitchen-stock-updated', (data) => {
+            console.log('Kitchen stock updated:', data);
+            setLastUpdate(new Date());
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = setTimeout(() => {
+                fetchFleetData();
+            }, 500);
+        });
+
+        return () => {
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            socket.disconnect();
+        };
+    }, []);
 
     const handleViewStock = async (k) => {
         try {
@@ -123,122 +162,146 @@ const KitchenManagement = () => {
     const fetchFleetData = async () => {
         try {
             setLoading(true);
-            const [kitchenRes, billRes] = await Promise.all([
-                getKitchens(),
-                getBills()
-            ]);
+            
+            // Fetch kitchens first as it is the primary data source
+            let kitchensList = [];
+            let bills = [];
 
-            if (kitchenRes.data.success && billRes.data.success) {
-                const kitchensList = kitchenRes.data.kitchens || [];
-                const bills = billRes.data.bills || [];
-
-                const mappedKitchens = kitchensList.map(k => {
-                    const kitchenBills = bills.filter(b =>
-                        (b.kitchen?._id === k._id) || (b.kitchen === k._id)
-                    );
-                    const completed = kitchenBills.filter(b => b.status === 'Completed').length;
-                    const active = kitchenBills.filter(b => ['Assigned_to_Kitchen', 'Processing', 'Ready'].includes(b.status)).length;
-
-                    const efficiencyNum = kitchenBills.length > 0
-                        ? (completed / kitchenBills.length) * 100
-                        : 0;
-
-                    const loadFactor = active > 10 ? 95 : active * 10;
-
-                    return {
-                        id: k._id,
-                        name: k.name,
-                        location: k.location,
-                        manager: k.manager,
-                        contact: k.phone,
-                        status: k.status === 'Active' ? 'Active' : 'Offline',
-                        orders: active,
-                        performance: efficiencyNum.toFixed(1) + '%',
-                        temperature: (24 + (active > 5 ? 4 : 0) + Math.random() * 2).toFixed(0) + '°C',
-                        load: loadFactor + '%'
-                    };
-                });
-
-                setKitchens(mappedKitchens);
-
-                // --- Performance Chart Data ---
-                const colors = [
-                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#10b981'], [1, '#059669']] }, // Emerald
-                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#3b82f6'], [1, '#2563eb']] }, // Blue
-                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#F97316'], [1, '#ea580c']] }, // Orange
-                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#8b5cf6'], [1, '#7c3aed']] }, // Purple
-                    { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#f43f5e'], [1, '#e11d48']] }, // Rose
-                ];
-
-                const perfCategories = mappedKitchens.map(k => k.name);
-                const efficiencySeries = mappedKitchens.map((k, idx) => ({
-                    y: parseFloat(k.performance) || 0,
-                    color: colors[idx % colors.length]
-                }));
-                const workloadSeries = mappedKitchens.map((k, idx) => ({
-                    y: parseInt(k.orders) || 0,
-                    color: '#e2e8f0' // Light gray for volume/load
-                }));
-
-                setChartsData(prev => ({
-                    ...prev,
-                    performance: {
-                        categories: perfCategories,
-                        series: [
-                            {
-                                name: 'Workload (Orders)',
-                                data: workloadSeries,
-                                color: '#f1f5f9',
-                                zIndex: 0
-                            },
-                            {
-                                name: 'Efficiency %',
-                                data: efficiencySeries,
-                                colorByPoint: true,
-                                zIndex: 1
-                            }
-                        ]
-                    }
-                }));
-
-                // --- Order Distribution Chart Data --
-                const orderDistData = mappedKitchens.map((k, idx) => {
-                    const totalKitchenOrders = bills.filter(b => {
-                        const bKitchenId = b.kitchen?._id || b.kitchen;
-                        return String(bKitchenId) === String(k.id); // Use k.id from mappedKitchens
-                    }).length;
-
-                    return {
-                        name: k.name,
-                        y: totalKitchenOrders,
-                        color: colors[idx % colors.length],
-                        sliced: idx === 0,
-                        selected: idx === 0
-                    };
-                });
-
-                // If total orders are 0 for all, show equal slices with colors for visual appeal
-                const hasAnyOrders = orderDistData.some(d => d.y > 0);
-                const finalChartData = orderDistData.map((d, idx) => ({
-                    ...d,
-                    y: hasAnyOrders ? d.y : 1, // Fallback to 1 if no data anywhere
-                    color: colors[idx % colors.length], // Explicitly re-apply color for safety
-                    dataLabels: {
-                        format: `<b>{point.name}</b><br>${hasAnyOrders ? '{point.percentage:.1f}%' : '0.0%'}`
-                    }
-                }));
-
-                setChartsData(prev => ({
-                    ...prev,
-                    orders: {
-                        series: [{
-                            name: 'Order Volume',
-                            colorByPoint: true,
-                            data: finalChartData
-                        }]
-                    }
-                }));
+            try {
+                const kitchenRes = await getKitchens();
+                if (kitchenRes.data.success) {
+                    kitchensList = kitchenRes.data.kitchens || [];
+                }
+            } catch (err) {
+                console.error('Error fetching kitchens:', err);
+                toast.error('Failed to load kitchen nodes');
             }
+
+            try {
+                // Fetch up to 1000 recent bills for robust fleet analytics
+                const billRes = await getBills(1, 1000); 
+                if (billRes.data.success) {
+                    bills = billRes.data.bills || [];
+                }
+            } catch (err) {
+                console.error('Error fetching billing data for metrics:', err);
+            }
+
+            const mappedKitchens = kitchensList.map(k => {
+                const kitchenBills = bills.filter(b => {
+                    const bKitchenId = b.kitchen?._id || b.kitchen;
+                    const kitchenId = k._id || k.id;
+                    return String(bKitchenId) === String(kitchenId);
+                });
+                
+                const completed = kitchenBills.filter(b => b.status === 'Completed' || b.status === 'Delivered').length;
+                const active = kitchenBills.filter(b => 
+                    ['Assigned to Kitchen', 'Processing', 'Ready', 'Pending'].includes(b.status)
+                ).length;
+
+                // Calculate total assigned stock units for Payload
+                const assignedStockVolume = (k.assignedProducts || []).reduce((acc, curr) => acc + (Number(curr.assigned) || 0), 0);
+
+                const efficiencyNum = kitchenBills.length > 0
+                    ? (completed / kitchenBills.length) * 100
+                    : (parseFloat(k.performance) || 0);
+
+                const loadFactor = active > 0 ? (active > 10 ? 95 : active * 10) : (assignedStockVolume > 0 ? 50 : 0);
+
+                return {
+                    id: k._id || k.id,
+                    _id: k._id || k.id,
+                    name: k.name || 'Unnamed Node',
+                    location: k.location || 'N/A',
+                    manager: k.manager || k.admin?.name || 'N/A', 
+                    contact: k.phone || 'N/A',
+                    status: k.status === 'Active' ? 'Active' : 'Offline',
+                    orders: assignedStockVolume, // Show Stock Units in Payload
+                    performance: efficiencyNum.toFixed(1) + '%',
+                    temperature: (24 + (active > 5 ? 4 : 0) + Math.random() * 2).toFixed(0) + '°C',
+                    load: loadFactor + '%'
+                };
+            });
+
+            setKitchens(mappedKitchens);
+
+            // --- Performance Chart Data ---
+            const colors = [
+                { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#10b981'], [1, '#059669']] }, // Emerald
+                { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#3b82f6'], [1, '#2563eb']] }, // Blue
+                { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#F97316'], [1, '#ea580c']] }, // Orange
+                { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#8b5cf6'], [1, '#7c3aed']] }, // Purple
+                { linearGradient: { x1: 0, y1: 0, x2: 1, y2: 1 }, stops: [[0, '#f43f5e'], [1, '#e11d48']] }, // Rose
+            ];
+
+            const perfCategories = mappedKitchens.map(k => k.name);
+            const efficiencySeries = mappedKitchens.map((k, idx) => ({
+                y: parseFloat(k.performance) || 0,
+                color: colors[idx % colors.length]
+            }));
+            const workloadSeries = mappedKitchens.map((k, idx) => ({
+                y: parseInt(k.orders) || 0,
+                color: '#e2e8f0' // Light gray for volume/load
+            }));
+
+            setChartsData(prev => ({
+                ...prev,
+                performance: {
+                    categories: perfCategories,
+                    series: [
+                        {
+                            name: 'Workload (Orders)',
+                            data: workloadSeries,
+                            color: '#f1f5f9',
+                            zIndex: 0
+                        },
+                        {
+                            name: 'Efficiency %',
+                            data: efficiencySeries,
+                            colorByPoint: true,
+                            zIndex: 1
+                        }
+                    ]
+                }
+            }));
+
+            // --- Order Distribution Chart Data --
+            const orderDistData = mappedKitchens.map((k, idx) => {
+                const totalKitchenOrders = bills.filter(b => {
+                    const bKitchenId = b.kitchen?._id || b.kitchen;
+                    return String(bKitchenId) === String(k.id); // Use k.id from mappedKitchens
+                }).length;
+
+                return {
+                    name: k.name,
+                    y: totalKitchenOrders,
+                    color: colors[idx % colors.length],
+                    sliced: idx === 0,
+                    selected: idx === 0
+                };
+            });
+
+            // If total orders are 0 for all, show equal slices with colors for visual appeal
+            const hasAnyOrders = orderDistData.some(d => d.y > 0);
+            const finalChartData = orderDistData.map((d, idx) => ({
+                ...d,
+                y: hasAnyOrders ? d.y : 1, // Fallback to 1 if no data anywhere
+                color: colors[idx % colors.length], // Explicitly re-apply color for safety
+                dataLabels: {
+                    format: `<b>{point.name}</b><br>${hasAnyOrders ? '{point.percentage:.1f}%' : '0.0%'}`
+                }
+            }));
+
+            setChartsData(prev => ({
+                ...prev,
+                orders: {
+                    series: [{
+                        name: 'Order Volume',
+                        colorByPoint: true,
+                        data: finalChartData
+                    }]
+                }
+            }));
         } catch (error) {
             console.error('Error fetching fleet data:', error);
             toast.error('Failed to load fleet data');
@@ -643,6 +706,15 @@ const KitchenManagement = () => {
                 ))}
             </div>
 
+            {/* --- Live Update Indicator --- */}
+            {lastUpdate && (
+                <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 w-fit">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                    <span className="font-bold">Live</span>
+                    <span className="text-zinc-400">Last sync: {lastUpdate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                </div>
+            )}
+
             {/* --- Analytics Charts --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <motion.div
@@ -730,7 +802,7 @@ const KitchenManagement = () => {
                                             <p className="text-[7px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">Command</p>
                                             <div className="flex items-center gap-1 text-secondary font-black text-[10px] uppercase">
                                                 <MdPerson className="text-primary text-[11px]" />
-                                                {kitchen.manager.split(' ')[0]}
+                                                {kitchen.manager?.split(' ')[0] || 'N/A'}
                                             </div>
                                         </div>
                                         <div>
@@ -806,7 +878,7 @@ const KitchenManagement = () => {
                                                     <MdDelete size={14} />
                                                 </button>
                                             </Tooltip>
-                                            <Tooltip text="Stock Inventory" position="top">
+                                            {/* <Tooltip text="Stock Inventory" position="top">
                                                 <button onClick={() => handleViewStock(kitchen)} className="p-2.5 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all shadow-sm border border-orange-100 cursor-pointer">
                                                     <MdInventory size={14} />
                                                 </button>
@@ -818,7 +890,7 @@ const KitchenManagement = () => {
                                             </Tooltip>
                                             <button onClick={() => handleTelemetry(kitchen)} className="flex items-center gap-2 px-4 py-2.5 bg-secondary text-primary rounded-xl transition-all shadow-lg shadow-black/5 text-[9px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-95 cursor-pointer">
                                                 Telemetry <MdArrowForward size={14} />
-                                            </button>
+                                            </button> */}
                                         </div>
                                     </div>
                                 </div>
@@ -909,7 +981,7 @@ const KitchenManagement = () => {
                                                             <MdDelete size={16} />
                                                         </button>
                                                     </Tooltip>
-                                                    <Tooltip text="Stock" position="left">
+                                                    {/* <Tooltip text="Stock" position="left">
                                                         <button onClick={() => handleViewStock(kitchen)} className="w-8 h-8 bg-orange-50 hover:bg-orange-100 rounded-lg text-orange-600 transition-all border border-orange-100 flex items-center justify-center shadow-sm cursor-pointer">
                                                             <MdInventory size={16} />
                                                         </button>
@@ -923,7 +995,7 @@ const KitchenManagement = () => {
                                                         <button onClick={() => handleTelemetry(kitchen)} className="w-8 h-8 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-secondary transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center shadow-sm cursor-pointer">
                                                             <MdArrowForward size={16} />
                                                         </button>
-                                                    </Tooltip>
+                                                    </Tooltip> */}
                                                 </div>
                                             </td>
                                         </tr>

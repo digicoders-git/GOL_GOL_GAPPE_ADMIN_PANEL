@@ -10,6 +10,7 @@ const UsersManagement = () => {
     const [view, setView] = useState('table');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [roleFilter, setRoleFilter] = useState('user');
 
     useEffect(() => {
         fetchUsers();
@@ -29,10 +30,12 @@ const UsersManagement = () => {
         }
     };
 
+    const filteredUsers = users.filter(user => user.role === 'user');
+
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentUsers = users.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(users.length / itemsPerPage);
+    const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
     return (
         <div className="max-w-[1400px] mx-auto space-y-6 p-4 lg:p-6">
@@ -44,8 +47,8 @@ const UsersManagement = () => {
                         </div>
                         <span className="text-primary font-black tracking-widest text-[9px] uppercase">Customers</span>
                     </div>
-                    <h1 className="text-3xl font-black text-secondary">All Users</h1>
-                    <p className="text-zinc-500 text-[11px] font-medium">Total {users.length} customers</p>
+                    <h1 className="text-3xl font-black text-secondary">All Customers</h1>
+                    <p className="text-zinc-500 text-[11px] font-medium">Total {filteredUsers.length} customers</p>
                 </div>
 
                 <div className="flex gap-2">
@@ -188,7 +191,7 @@ const UsersManagement = () => {
                 </div>
 
                 <span className="text-sm text-zinc-600">
-                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, users.length)} of {users.length}
+                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredUsers.length)} of {filteredUsers.length}
                 </span>
             </div>
         </div>

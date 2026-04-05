@@ -7,7 +7,7 @@ const DirectTest = () => {
     const testDirect = async () => {
         setLoading(true);
         try {
-            const API_URL = 'http://localhost:5000/api/test/test-products';
+            const API_URL = 'http://localhost:4000/api/test/test-products';
             console.log('🔄 Testing direct API:', API_URL);
             
             const response = await fetch(API_URL);

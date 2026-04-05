@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getBills, getKitchenOrders, getKitchens, updateBill, updateBillStatus } from '../utils/api';
+import io from 'socket.io-client';
+import { getBills, getKitchenOrders, getKitchens, updateBill, updateBillStatus, getMyKitchenOrders, getMyKitchen } from '../utils/api';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import {
@@ -41,9 +42,12 @@ const BillingManagement = () => {
     const itemsPerPage = 8;
 
     const [selectedBillForAssignment, setSelectedBillForAssignment] = useState(null);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash');
     const [kitchens, setKitchens] = useState([]);
     const [assigning, setAssigning] = useState(false);
     const [selectedTxForReceipt, setSelectedTxForReceipt] = useState(null);
+    const socketRef = useRef(null);
+    const refreshTimeoutRef = useRef(null);
 
     const fetchBills = async () => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -55,19 +59,12 @@ const BillingManagement = () => {
             let billRes, kitchenRes;
 
             if (role === 'billing_admin') {
-                // Billing admin sees only their kitchen's orders
-                billRes = await fetch(`${API_URL}/api/billing-admin/my-kitchen/orders`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                const data = await billRes.json();
-                billRes = { data: { success: data.success, bills: data.orders || [] } };
-
-                // Get their kitchen
-                kitchenRes = await fetch(`${API_URL}/api/billing-admin/my-kitchen`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                const kitchenData = await kitchenRes.json();
-                kitchenRes = { data: { success: kitchenData.success, kitchens: kitchenData.kitchen ? [kitchenData.kitchen] : [] } };
+                const [ordersRes, kRes] = await Promise.all([
+                    getMyKitchenOrders(),
+                    getMyKitchen()
+                ]);
+                billRes = { data: { success: ordersRes.data.success, bills: ordersRes.data.orders || ordersRes.data.bills || [] } };
+                kitchenRes = { data: { success: kRes.data.success, kitchens: kRes.data.kitchen ? [kRes.data.kitchen] : [] } };
             } else {
                 [billRes, kitchenRes] = await Promise.all([
                     role === 'kitchen_admin' ? getKitchenOrders() : getBills(),
@@ -171,6 +168,45 @@ const BillingManagement = () => {
 
     useEffect(() => {
         fetchBills();
+        
+        // Initialize Socket.IO connection for real-time updates
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const socket = io(API_URL, {
+            auth: {
+                token: localStorage.getItem('token')
+            }
+        });
+        socketRef.current = socket;
+
+        // Listen for billing updates
+        socket.on('billing-status-updated', () => {
+            console.log('Billing status updated - refreshing...');
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = setTimeout(() => {
+                fetchBills();
+            }, 500);
+        });
+
+        socket.on('order-created', () => {
+            console.log('New order created - refreshing...');
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = setTimeout(() => {
+                fetchBills();
+            }, 500);
+        });
+
+        socket.on('stock-updated', () => {
+            console.log('Stock updated - refreshing...');
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = setTimeout(() => {
+                fetchBills();
+            }, 500);
+        });
+
+        return () => {
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            socket.disconnect();
+        };
     }, []);
 
     const handleAssignToKitchen = async (kitchenId) => {
@@ -178,12 +214,15 @@ const BillingManagement = () => {
 
         try {
             setAssigning(true);
-            // First update the bill with the kitchen ID
-            await updateBill(selectedBillForAssignment._id, { kitchen: kitchenId });
+            // Update the bill with both kitchen ID and chosen payment method
+            await updateBill(selectedBillForAssignment._id, { 
+                kitchen: kitchenId,
+                paymentMethod: selectedPaymentMethod 
+            });
             // Then update status
             await updateBillStatus(selectedBillForAssignment._id, 'Assigned_to_Kitchen');
 
-            toast.success('Order assigned to kitchen successfully!');
+            toast.success('Order assigned and payment method set!');
             setSelectedBillForAssignment(null);
             fetchBills();
         } catch (error) {
@@ -726,8 +765,30 @@ const BillingManagement = () => {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-1.5">
-                                                            <MdPayment className="text-zinc-300" size={16} />
-                                                            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{tx.method}</span>
+                                                            {tx.method && tx.method !== 'Other' ? (
+                                                                <>
+                                                                    <MdPayment className="text-zinc-300" size={16} />
+                                                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{tx.method}</span>
+                                                                </>
+                                                            ) : (
+                                                                <select
+                                                                    value={tx.method || ''}
+                                                                    onChange={(e) => {
+                                                                        const newMethod = e.target.value;
+                                                                        updateBillStatus(tx._id, tx.rawStatus).then(() => {
+                                                                            updateBill(tx._id, { paymentMethod: newMethod }).then(() => {
+                                                                                toast.success('Payment method updated');
+                                                                                fetchBills();
+                                                                            });
+                                                                        });
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-white border-2 border-primary rounded-lg text-[10px] font-black text-secondary uppercase tracking-[0.2em] cursor-pointer focus:outline-none hover:border-secondary transition-all"
+                                                                >
+                                                                    <option value="">Select Payment</option>
+                                                                    <option value="Cash">Cash</option>
+                                                                    <option value="Online">Online</option>
+                                                                </select>
+                                                            )}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
@@ -891,6 +952,19 @@ const BillingManagement = () => {
                                     >
                                         <MdClose size={24} />
                                     </button>
+                                </div>
+
+                                {/* Payment Method Selection */}
+                                <div className="bg-zinc-50 p-1.5 rounded-2xl border border-zinc-100 flex gap-2">
+                                    {['Cash', 'Online'].map((method) => (
+                                        <button
+                                            key={method}
+                                            onClick={() => setSelectedPaymentMethod(method)}
+                                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedPaymentMethod === method ? 'bg-secondary text-primary shadow-lg shadow-secondary/20' : 'text-zinc-400 hover:text-secondary'}`}
+                                        >
+                                            {method}
+                                        </button>
+                                    ))}
                                 </div>
 
                                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">

@@ -8,7 +8,7 @@ const ApiTest = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/products', {
+            const response = await fetch('http://localhost:4000/api/products', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'

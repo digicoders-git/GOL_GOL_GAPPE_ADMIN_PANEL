@@ -43,15 +43,15 @@ const AddKitchen = () => {
     useEffect(() => {
         const fetchAdmins = async () => {
             try {
-                const response = await fetch(`${API_URL}/api/admins`, {
+                const response = await fetch(`${API_URL}/api/auth/admins`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
                 const data = await response.json();
                 if (data.success) {
-                    const kitchenAdmins = data.users.filter(u => u.role === 'kitchen_admin');
-                    const billingAdminsList = data.users.filter(u => u.role === 'billing_admin');
+                    const kitchenAdmins = (data.admins || []).filter(u => u.role === 'kitchen_admin');
+                    const billingAdminsList = (data.admins || []).filter(u => u.role === 'billing_admin');
                     setAdmins(kitchenAdmins);
                     setBillingAdmins(billingAdminsList);
                 }

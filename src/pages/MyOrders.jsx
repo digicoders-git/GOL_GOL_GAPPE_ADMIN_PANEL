@@ -98,7 +98,7 @@ const MyOrders = () => {
                                 {/* Order Top Info */}
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-primary/5 pb-6">
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-black text-secondary/40 uppercase tracking-widest">Order ID: #{order.billNumber}</p>
+                                        <p className="text-[10px] font-black text-secondary/40 uppercase tracking-widest">Order ID: #{order.orderNumber}</p>
                                         <p className="text-sm font-bold text-secondary">Ordered on {new Date(order.createdAt).toLocaleDateString('en-IN', {
                                             day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                                         })}</p>
@@ -111,7 +111,8 @@ const MyOrders = () => {
 
                                 {/* Order Items */}
                                 <div className="space-y-4">
-                                    {order.items.map((item, idx) => (
+                                    {order.items && order.items.length > 0 ? (
+                                    order.items.map((item, idx) => (
                                         <div key={idx} className="flex items-center gap-4">
                                             <div className="w-16 h-16 bg-[#F9F6F0] rounded-2xl overflow-hidden flex-shrink-0 border border-primary/5">
                                                 {item.product?.thumbnail ? (
@@ -128,7 +129,12 @@ const MyOrders = () => {
                                             </div>
                                             <p className="text-lg font-black text-secondary">₹{item.price * item.quantity}</p>
                                         </div>
-                                    ))}
+                                    ))
+                                ) : (
+                                    <div className="text-center py-4 text-secondary/50">
+                                        <p className="text-sm">No items in this order</p>
+                                    </div>
+                                )}
                                 </div>
 
                                 {/* Order Footer */}
@@ -149,8 +155,9 @@ const MyOrders = () => {
                                             <p className="text-2xl font-black text-secondary">₹{order.totalAmount}</p>
                                         </div>
                                         <button
-                                            onClick={() => navigate(`/product/${order.items[0].product._id}`)}
-                                            className="bg-primary text-secondary px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/10 hover:bg-primary-dark hover:text-white transition-all active:scale-95"
+                                            onClick={() => order.items?.[0]?.product?._id && navigate(`/product/${order.items[0].product._id}`)}
+                                            disabled={!order.items?.[0]?.product?._id}
+                                            className="bg-primary text-secondary px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/10 hover:bg-primary-dark hover:text-white transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             Reorder
                                         </button>

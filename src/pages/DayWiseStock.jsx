@@ -24,8 +24,9 @@ import {
 } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
-import { getProducts, getStockLogs, getUserInventory } from '../utils/api';
+import { getProducts, getStockLogs, getUserInventory, getTransferHistory, getKitchens } from '../utils/api';
 import { useEffect } from 'react';
+import { initSocket, onOrderAssigned, offOrderAssigned } from '../utils/socketService';
 
 // Initialize 3D module
 if (typeof Highcharts3D === 'function') {
@@ -38,57 +39,103 @@ const DayWiseStock = () => {
     const [statusFilter, setStatusFilter] = useState('All');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [stockMovements, setStockMovements] = useState([]);
+    const [kitchenAssignments, setKitchenAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [viewType, setViewType] = useState('Kitchen'); // Default to Kitchen View
 
     const fetchData = async () => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const role = user.role || 'super_admin';
-        const isAdmin = role === 'super_admin' || role === 'billing_admin' || role === 'admin';
+        
+        // billing_admin should NOT be treated as a global admin here 
+        // because they need to see their specific kitchen stock.
+        const isGlobalAdmin = role === 'super_admin' || role === 'admin';
 
         try {
             setLoading(true);
-            const response = isAdmin ? await getProducts() : await getUserInventory();
-            const logRes = await getStockLogs();
+            
+            // For Global Admins, we use the viewType toggle. For others, we just get their inventory.
+            let response;
+            if (isGlobalAdmin) {
+                // If Warehouse view, use getProducts. If Kitchen view, use getUserInventory with flag.
+                response = viewType === 'Warehouse' 
+                    ? await getProducts() 
+                    : await getUserInventory(`view=kitchen`);
+            } else {
+                response = await getUserInventory();
+            }
 
-            console.log('Stock Logs Response:', logRes.data);
-            console.log('Products/Inventory Response:', response.data);
+            const logRes = await getStockLogs();
+            const transferRes = await getTransferHistory();
+            const kitchensRes = await getKitchens();
 
             if (response.data.success) {
-                const rawProducts = isAdmin ? response.data.products : response.data.inventory;
+                // Determine source: products (warehouse) or inventory (kitchens)
+                const rawProducts = response.data.products || response.data.inventory || [];
                 const logs = logRes.data.success ? logRes.data.logs : [];
-
-                console.log('Raw Products:', rawProducts);
-                console.log('Logs:', logs);
+                const transfers = transferRes.data.success ? transferRes.data.transfers : [];
+                const kitchens = kitchensRes.data.success ? kitchensRes.data.kitchens : [];
 
                 const movements = rawProducts.map((p, i) => {
                     const item = p.product || p;
+                    const itemName = item?.name || 'Unknown Product';
+                    const currentQty = p.quantity || item.quantity || 0;
+
+                    // Calculate ACTUAL Assigned (Sum of transfers)
+                    // If in Warehouse view, Assigned is effectively 0 for the purpose of "moves".
+                    // If in Kitchen view, Assigned is what was sent to kitchens.
+                    const productTransfers = transfers.filter(t => 
+                        (t.product?._id?.toString() === item._id?.toString() || 
+                         t.product?.toString() === item._id?.toString()) &&
+                        t.status === 'success'
+                    );
+                    const totalAssigned = productTransfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
 
                     // Convert selectedDate to ISO date string for comparison
-                    const selectedDateStr = new Date(selectedDate).toISOString().split('T')[0];
+                    const selectedDateStr = selectedDate;
 
                     // Filter logs for this product and date
                     const itemLogs = logs.filter(l => {
                         if (!l.product || !l.product._id || !l.createdAt) return false;
                         const logDateStr = new Date(l.createdAt).toISOString().split('T')[0];
-                        return l.product._id === item._id && logDateStr === selectedDateStr;
+                        return l.product._id.toString() === item._id.toString() && logDateStr === selectedDateStr;
                     });
 
                     const added = itemLogs.filter(l => l.type === 'ADD').reduce((acc, curr) => acc + (curr.quantity || 0), 0);
                     const sold = itemLogs.filter(l => l.type === 'REMOVE').reduce((acc, curr) => acc + (curr.quantity || 0), 0);
 
                     return {
-                        id: item._id,
-                        item: item.name,
-                        opening: (p.quantity || item.quantity) + sold - added,
+                        id: item._id || i,
+                        item: itemName,
+                        opening: totalAssigned, 
                         added,
-                        sold,
-                        balanced: p.quantity || item.quantity,
+                        sold: totalAssigned - currentQty, // Used = Assigned - Remaining
+                        balanced: currentQty, // Remaining
                         waste: itemLogs.filter(l => l.type === 'ADJUSTMENT' && l.quantity < 0).reduce((acc, curr) => acc + Math.abs(curr.quantity || 0), 0),
-                        status: (p.quantity || item.quantity) > 10 ? 'Surplus' : 'Deficit'
+                        status: currentQty > 10 ? 'Surplus' : 'Deficit'
                     };
                 });
-                console.log('Calculated Movements:', movements);
                 setStockMovements(movements);
+
+                // Process kitchen assignments
+                const assignments = [];
+                kitchens.forEach(kitchen => {
+                    if (kitchen.assignedProducts && kitchen.assignedProducts.length > 0) {
+                        kitchen.assignedProducts.forEach(ap => {
+                            const product = ap.product || {};
+                            assignments.push({
+                                kitchenId: kitchen._id,
+                                kitchenName: kitchen.name,
+                                productId: product._id,
+                                productName: product.name || 'Unknown Product',
+                                assigned: ap.assigned || 0,
+                                used: ap.used || 0,
+                                remaining: (ap.assigned || 0) - (ap.used || 0)
+                            });
+                        });
+                    }
+                });
+                setKitchenAssignments(assignments);
             }
         } catch (error) {
             console.error('Error fetching stock:', error);
@@ -100,7 +147,22 @@ const DayWiseStock = () => {
 
     useEffect(() => {
         fetchData();
-    }, [selectedDate]);
+    }, [selectedDate, viewType]);
+
+    useEffect(() => {
+        const socket = initSocket();
+        
+        const handleOrderAssigned = (data) => {
+            console.log('Order assigned, refreshing kitchen stock:', data);
+            fetchData();
+        };
+
+        onOrderAssigned(handleOrderAssigned);
+
+        return () => {
+            offOrderAssigned();
+        };
+    }, []);
 
     const handleExport = () => {
         toast.promise(
@@ -150,20 +212,40 @@ const DayWiseStock = () => {
 
 
     const filteredMovements = stockMovements.filter(m => {
-        const matchesSearch = m.item.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = (m.item || 'Unknown Product').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesStatus = statusFilter === 'All' || m.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
-    // Calculate real stats from data
-    const totalSales = filteredMovements.reduce((sum, m) => sum + m.sold, 0);
-    const totalWaste = filteredMovements.reduce((sum, m) => sum + m.waste, 0);
-    const totalAdded = filteredMovements.reduce((sum, m) => sum + m.added, 0);
-    const efficiency = totalAdded > 0 ? (((totalAdded - totalWaste) / totalAdded) * 100).toFixed(1) : 0;
-    const totalBalance = filteredMovements.reduce((sum, m) => sum + m.balanced, 0);
+    // Only use kitchen assignments data
+    const displayData = kitchenAssignments.map(ka => ({
+        id: `${ka.kitchenId}-${ka.productId}`,
+        item: `${ka.productName} (${ka.kitchenName})`,
+        opening: ka.assigned,
+        added: 0,
+        sold: ka.used,
+        balanced: ka.remaining,
+        waste: 0,
+        status: ka.remaining > 0 ? 'Surplus' : 'Deficit',
+        isKitchenData: true,
+        kitchenName: ka.kitchenName,
+        productName: ka.productName
+    })).filter(m => {
+        const matchesSearch = (m.item || 'Unknown Product').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = statusFilter === 'All' || m.status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
 
-    // Dynamic chart data from actual stock movements
-    const topProducts = filteredMovements.slice(0, 5);
+    // Calculate real stats from kitchen data only
+    const totalSales = displayData.reduce((sum, m) => sum + m.sold, 0);
+    const totalWaste = displayData.reduce((sum, m) => sum + m.waste, 0);
+    const totalAdded = displayData.reduce((sum, m) => sum + m.added, 0);
+    const efficiency = totalAdded > 0 ? (((totalAdded - totalWaste) / totalAdded) * 100).toFixed(1) : 0;
+    const totalBalance = displayData.reduce((sum, m) => sum + m.balanced, 0);
+    const totalAssigned = displayData.reduce((sum, m) => sum + m.opening, 0);
+
+    // Dynamic chart data from kitchen data only
+    const topProducts = displayData.slice(0, 5);
     const stockTrendChartOptions = {
         chart: {
             type: 'areaspline',
@@ -232,7 +314,7 @@ const DayWiseStock = () => {
         credits: { enabled: false }
     };
 
-    const wasteData = filteredMovements.filter(p => p.waste > 0).slice(0, 5);
+    const wasteData = displayData.filter(p => p.waste > 0).slice(0, 5);
     const colors = ['#ef4444', '#f59e0b', '#F97316', '#94a3b8', '#3b82f6'];
     const wasteAnalysisChartOptions = {
         chart: {
@@ -323,6 +405,24 @@ const DayWiseStock = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4">
+                    {/* View Toggle for Global Admins */}
+                    {(JSON.parse(localStorage.getItem('user') || '{}').role === 'super_admin' || JSON.parse(localStorage.getItem('user') || '{}').role === 'admin') && (
+                        <div className="flex bg-white border border-zinc-100 p-1 rounded-xl shadow-sm">
+                            <button
+                                onClick={() => setViewType('Kitchen')}
+                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'Kitchen' ? 'bg-secondary text-primary' : 'text-zinc-400 hover:text-secondary'}`}
+                            >
+                                Kitchens
+                            </button>
+                            <button
+                                onClick={() => setViewType('Warehouse')}
+                                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'Warehouse' ? 'bg-secondary text-primary' : 'text-zinc-400 hover:text-secondary'}`}
+                            >
+                                Warehouse
+                            </button>
+                        </div>
+                    )}
+
                     <div className="relative group w-full sm:w-auto">
                         <MdCalendarToday className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300 group-focus-within:text-primary transition-colors text-lg" />
                         <input
@@ -340,12 +440,32 @@ const DayWiseStock = () => {
             </div>
 
             {/* --- Daily Summary Cards --- */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
-                    { label: 'Total Sales', value: `${totalSales} Units`, trend: totalSales > 0 ? '+' + totalSales : '0', icon: <MdTrendingUp />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Total Waste', value: `${totalWaste} Units`, trend: totalWaste > 0 ? totalWaste + ' lost' : 'None', icon: <MdWarning />, color: 'text-red-600', bg: 'bg-red-50' },
-                    { label: 'Efficiency', value: `${efficiency}%`, trend: efficiency > 95 ? 'Excellent' : 'Good', icon: <MdCheckCircle />, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'Stock Balance', value: `${totalBalance} Units`, trend: 'Available', icon: <MdInventory />, color: 'text-orange-600', bg: 'bg-orange-50' }
+                    { 
+                        label: 'Total Assigned', 
+                        value: `${totalAssigned} Units`, 
+                        trend: 'Total intake', 
+                        icon: <MdInventory />, 
+                        color: 'text-emerald-600', 
+                        bg: 'bg-emerald-50' 
+                    },
+                    { 
+                        label: 'Total Used', 
+                        value: `${totalSales} Units`, 
+                        trend: 'Total consumption', 
+                        icon: <MdTrendingUp />, 
+                        color: 'text-red-600', 
+                        bg: 'bg-red-50' 
+                    },
+                    { 
+                        label: 'Total Remaining', 
+                        value: `${totalBalance} Units`, 
+                        trend: 'Available stock', 
+                        icon: <MdCheckCircle />, 
+                        color: 'text-blue-600', 
+                        bg: 'bg-blue-50' 
+                    }
                 ].map((stat, i) => (
                     <div key={i} className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-3.5 group hover:border-primary/30 transition-all">
                         <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform`}>
@@ -460,43 +580,43 @@ const DayWiseStock = () => {
                         <thead>
                             <tr className="bg-zinc-50 border-b border-zinc-100">
                                 <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest">Product</th>
-                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Opening</th>
-                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Added</th>
-                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Sold</th>
-                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Balance</th>
-                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Waste</th>
+                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Assigned</th>
+                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Used</th>
+                                <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-center">Remaining</th>
                                 <th className="px-6 py-3.5 text-[9px] font-black text-zinc-400 uppercase tracking-widest text-right">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-50">
-                            {filteredMovements.map((m) => (
+                            {displayData.map((m) => (
                                 <tr key={m.id} className="group hover:bg-zinc-50/50 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center text-primary font-black border border-zinc-200 group-hover:bg-primary/10 transition-all shadow-inner text-sm">
-                                                {m.item.charAt(0)}
+                                                {m.isKitchenData ? 'K' : m.item.charAt(0)}
                                             </div>
                                             <div>
                                                 <h4 className="font-black text-secondary text-xs uppercase tracking-tight leading-none mb-1">{m.item}</h4>
-                                                <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">Entry #{1000 + m.id}</p>
+                                                <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">{m.isKitchenData ? `Kitchen: ${m.kitchenName}` : `Entry #${1000 + m.id}`}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-center font-bold text-zinc-500 text-sm">{m.opening}</td>
-                                    <td className="px-6 py-4 text-center font-black text-emerald-600 text-sm">+{m.added}</td>
-                                    <td className="px-6 py-4 text-center font-black text-red-500 text-sm">-{m.sold}</td>
+                                    <td className="px-6 py-4 text-center font-black text-emerald-600 text-sm">
+                                        {m.opening}
+                                    </td>
+                                    <td className="px-6 py-4 text-center font-black text-red-500 text-sm">
+                                        {Math.max(0, m.sold)}
+                                    </td>
                                     <td className="px-6 py-4 text-center">
-                                        <span className="inline-block px-3 py-1.5 bg-secondary text-white rounded-lg font-black text-xs shadow-sm">
+                                        <span className="inline-block px-4 py-2 bg-secondary text-white rounded-xl font-black text-sm shadow-lg shadow-secondary/10">
                                             {m.balanced}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-center font-bold text-orange-600 text-sm">{m.waste}</td>
                                     <td className="px-6 py-4 text-right">
                                         <button
                                             onClick={() => handleInfo(m)}
                                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 cursor-pointer ${m.status === 'Surplus' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'
                                                 }`}>
-                                            {m.status === 'Surplus' ? <MdArrowUpward size={12} /> : <MdArrowDownward size={12} />}
+                                            <div className={`w-1.5 h-1.5 rounded-full ${m.status === 'Surplus' ? 'bg-emerald-600' : 'bg-red-600'} animate-pulse`} />
                                             {m.status}
                                             <MdInfo size={12} className="ml-1 opacity-70" />
                                         </button>
