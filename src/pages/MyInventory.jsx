@@ -183,12 +183,13 @@ const MyInventory = () => {
                                 <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Assigned</th>
                                 <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Used</th>
                                 <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Remaining</th>
+                                <th className="px-6 py-4 text-center text-[9px] font-black text-zinc-400 uppercase tracking-widest">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-20 text-center">
+                                    <td colSpan="5" className="px-6 py-20 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
                                             <p className="text-sm font-bold text-zinc-400">Loading...</p>
@@ -197,7 +198,7 @@ const MyInventory = () => {
                                 </tr>
                             ) : filteredInventory.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-20 text-center">
+                                    <td colSpan="5" className="px-6 py-20 text-center">
                                         <p className="text-sm font-bold text-zinc-400">No products found</p>
                                     </td>
                                 </tr>
@@ -210,6 +211,22 @@ const MyInventory = () => {
                                 const category = item.product?.category || 'General';
                                 const unit = item.product?.unit || 'Units';
                                 const thumbnail = item.product?.thumbnail;
+                                const minStock = item.product?.minStock || 10;
+                                const status = item.status || item.product?.status || 'Unknown';
+                                
+                                // Calculate status color
+                                let statusColor = 'bg-zinc-100 text-zinc-600';
+                                let statusIcon = null;
+                                if (status === 'In Stock' || remaining > minStock) {
+                                    statusColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                                    statusIcon = <MdCheckCircle size={14} />;
+                                } else if (status === 'Low Stock' || (remaining > 0 && remaining <= minStock)) {
+                                    statusColor = 'bg-orange-100 text-orange-700 border-orange-200';
+                                    statusIcon = <MdWarning size={14} />;
+                                } else if (status === 'Out of Stock' || remaining <= 0) {
+                                    statusColor = 'bg-red-100 text-red-700 border-red-200';
+                                    statusIcon = <MdWarning size={14} />;
+                                }
 
                                 return (
                                     <tr key={item._id} className="border-b border-zinc-50 hover:bg-zinc-50 transition-colors">
@@ -244,6 +261,12 @@ const MyInventory = () => {
                                             <div className="inline-flex flex-col items-center bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
                                                 <span className="text-lg font-black text-emerald-600">{remaining}</span>
                                                 <span className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">{unit}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border font-black text-xs uppercase tracking-wider ${statusColor}`}>
+                                                {statusIcon}
+                                                {status}
                                             </div>
                                         </td>
                                     </tr>
