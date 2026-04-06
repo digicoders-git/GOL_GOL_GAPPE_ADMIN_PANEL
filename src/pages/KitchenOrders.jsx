@@ -8,8 +8,8 @@ import Swal from 'sweetalert2';
 const KitchenOrders = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('Assigned_to_Kitchen');
-    const [viewMode, setViewMode] = useState('cards');
+    const [filter, setFilter] = useState('All');
+    const [viewMode, setViewMode] = useState('table');
 
     const fetchOrders = async () => {
         try {
