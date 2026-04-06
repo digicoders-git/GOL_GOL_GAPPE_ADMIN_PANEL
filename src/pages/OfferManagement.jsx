@@ -188,7 +188,7 @@ const OfferManagement = () => {
                                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-700">Discount</th>
                                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-700">Used</th>
                                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-700">Expires</th>
-                                <th className="px-6 py-3 text-left text-sm font-bold text-gray-700">Min Order</th>
+                                {/* <th className="px-6 py-3 text-left text-sm font-bold text-gray-700">Min Order</th> */}
                                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-700">Status</th>
                                 <th className="px-6 py-3 text-left text-sm font-bold text-gray-700">Actions</th>
                             </tr>
@@ -213,7 +213,7 @@ const OfferManagement = () => {
                                                 {new Date(offer.expiryDate).toLocaleDateString()}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">₹{offer.minOrderAmount}</td>
+                                        {/* <td className="px-6 py-4 text-sm text-gray-600">₹{offer.minOrderAmount}</td> */}
                                         <td className="px-6 py-4">
                                             <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${statusInfo.color}`}>
                                                 <span>{statusInfo.icon}</span>
