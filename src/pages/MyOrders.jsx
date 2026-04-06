@@ -135,6 +135,22 @@ const MyOrders = () => {
                                         <p className="text-sm">No items in this order</p>
                                     </div>
                                 )}
+                                
+                                {/* Offer Applied */}
+                                {order.offer && order.offer.discountAmount > 0 && (
+                                    <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                                <FaCheckCircle />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-green-700 uppercase">Offer Applied: {order.offer.code}</p>
+                                                <p className="text-xs text-green-600 font-medium">You saved ₹{order.offer.discountAmount}</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-black text-green-600">-₹{order.offer.discountAmount}</p>
+                                    </div>
+                                )}
                                 </div>
 
                                 {/* Order Footer */}

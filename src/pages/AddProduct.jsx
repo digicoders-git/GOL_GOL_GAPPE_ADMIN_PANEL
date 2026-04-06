@@ -699,7 +699,7 @@ const AddProduct = () => {
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
+                                        {/* <div className="space-y-2">
                                             <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Video Upload (Optional)</label>
                                             <div className="relative">
                                                 <input
@@ -769,7 +769,7 @@ const AddProduct = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                        </div>
+                                        </div> */}
 
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Tags (Comma separated)</label>

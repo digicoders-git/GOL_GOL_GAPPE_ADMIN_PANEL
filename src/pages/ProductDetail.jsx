@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     FaStar, FaArrowLeft, FaShoppingBag, FaUtensils,
-    FaInfoCircle, FaFire, FaLeaf, FaMapMarkerAlt, FaTag, FaTimes
+    FaInfoCircle, FaFire, FaLeaf, FaMapMarkerAlt, FaTag, FaCheckCircle
 } from 'react-icons/fa';
 import { getProduct, createOrder } from '../utils/api';
 import toast from 'react-hot-toast';
@@ -21,9 +21,8 @@ const ProductDetail = () => {
     const [quantity, setQuantity] = useState(1);
     const [ordering, setOrdering] = useState(false);
     const [selectedKitchen, setSelectedKitchen] = useState(null);
-    const [offerCode, setOfferCode] = useState('');
     const [appliedOffer, setAppliedOffer] = useState(null);
-    const [validatingOffer, setValidatingOffer] = useState(false);
+    const [applyingOffer, setApplyingOffer] = useState(false);
 
     useEffect(() => {
         fetchProductDetails();
@@ -33,7 +32,24 @@ const ProductDetail = () => {
         try {
             const response = await getProduct(id);
             if (response.data.success) {
-                setProduct(response.data.product);
+                const productData = response.data.product;
+                setProduct(productData);
+                
+                // Fetch active offer if exists
+                if (productData.activeOffer) {
+                    try {
+                        const offerResponse = await axios.get(
+                            `${import.meta.env.VITE_API_URL}/api/offers/${productData.activeOffer}`,
+                            { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                        );
+                        if (offerResponse.data.success) {
+                            productData.activeOfferDetails = offerResponse.data.offer;
+                            setProduct({...productData});
+                        }
+                    } catch (err) {
+                        console.log('Failed to fetch offer details:', err);
+                    }
+                }
                 const fetchedKitchens = response.data.kitchens || [];
 
                 const queryParams = new URLSearchParams(location.search);
@@ -84,7 +100,7 @@ const ProductDetail = () => {
         const itemTotal = effectivePrice * quantity;
         const packagingCharge = product.packagingCharge || 0;
         const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
-        const discount = appliedOffer ? appliedOffer.discount : 0;
+        const discount = appliedOffer ? (appliedOffer.discount || appliedOffer.discountAmount || 0) : 0;
         const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
 
         const result = await Swal.fire({
@@ -103,7 +119,7 @@ const ProductDetail = () => {
                     ` : ''}
                     ${appliedOffer ? `
                     <div class="flex justify-between items-center bg-green-50 p-4 rounded-2xl border border-green-200">
-                        <span class="text-[10px] font-black text-green-600 uppercase tracking-widest">Discount (${appliedOffer.code})</span>
+                        <span class="text-[10px] font-black text-green-600 uppercase tracking-widest">Discount (${appliedOffer.title || appliedOffer.code})</span>
                         <span class="text-sm font-black text-green-600">-₹${discount}</span>
                     </div>
                     ` : ''}
@@ -151,7 +167,7 @@ const ProductDetail = () => {
             const itemTotal = effectivePrice * quantity;
             const packagingCharge = product.packagingCharge || 0;
             const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
-            const discount = appliedOffer ? appliedOffer.discount : 0;
+            const discount = appliedOffer ? (appliedOffer.discount || appliedOffer.discountAmount || 0) : 0;
             const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
 
             const orderData = {
@@ -165,7 +181,7 @@ const ProductDetail = () => {
                 totalAmount: totalAmount,
                 paymentMethod: 'Cash',
                 paymentStatus: 'Pending',
-                offerCode: appliedOffer ? appliedOffer.code : null
+                offerCode: appliedOffer ? (appliedOffer.code || product.activeOfferDetails?.code) : null
             };
 
             const response = await createOrder(orderData);
@@ -221,54 +237,49 @@ const ProductDetail = () => {
     if (!product) return null;
 
     const handleApplyOffer = async () => {
-        if (!offerCode.trim()) {
-            toast.error('Please enter an offer code');
+        if (!product.activeOfferDetails) {
+            toast.error('No active offer available');
             return;
         }
 
-        setValidatingOffer(true);
+        if (quantity > 1) {
+            toast.error('Offer can only be applied to 1 item. Please set quantity to 1.');
+            return;
+        }
+
+        setApplyingOffer(true);
         try {
             const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
             const itemTotal = effectivePrice * quantity;
-            const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/offers/validate`, {
-                code: offerCode.toUpperCase(),
-                orderAmount: itemTotal,
-                productId: product._id
-            }, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-            });
+            
+            const response = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/offers/apply`,
+                {
+                    code: product.activeOfferDetails.code,
+                    orderAmount: itemTotal,
+                    productId: product._id
+                },
+                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+            );
 
             if (response.data.success) {
-                // Check if already used by this user
-                if (response.data.offer.usedByCurrentUser) {
-                    toast.error('You have already used this offer!');
-                    setAppliedOffer(null);
-                    setOfferCode('');
-                    setValidatingOffer(false);
-                    return;
-                }
                 setAppliedOffer(response.data.offer);
-                toast.success(`Offer applied! You saved ₹${response.data.offer.discount}`);
+                toast.success(`🎉 ${response.data.offer.title} Applied! Saved ₹${response.data.priceBreakdown.savings}`, {
+                    duration: 4000,
+                    icon: '🎉'
+                });
             }
         } catch (error) {
-            const message = error.response?.data?.message || 'Invalid or already used offer code';
+            const message = error.response?.data?.message || 'Failed to apply offer';
             toast.error(message);
-            setAppliedOffer(null);
-            setOfferCode('');
         } finally {
-            setValidatingOffer(false);
+            setApplyingOffer(false);
         }
-    };
-
-    const handleRemoveOffer = () => {
-        setAppliedOffer(null);
-        setOfferCode('');
-        toast.success('Offer removed');
     };
 
     const handleQuantityChange = (newQuantity) => {
         if (appliedOffer && newQuantity > 1) {
-            toast.error('Offer can only be applied to 1 item');
+            toast.error('Offer is applied. Cannot change quantity.');
             return;
         }
         setQuantity(newQuantity);
@@ -281,7 +292,7 @@ const ProductDetail = () => {
         const itemTotal = effectivePrice * quantity;
         const packagingCharge = product.packagingCharge || 0;
         const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
-        const discount = appliedOffer ? appliedOffer.discount : 0;
+        const discount = appliedOffer ? (appliedOffer.discount || appliedOffer.discountAmount || 0) : 0;
         return itemTotal + packagingCharge + gstAmount - discount;
     };
 
@@ -442,49 +453,51 @@ const ProductDetail = () => {
                         </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-primary/5 to-orange-50 p-6 rounded-2xl border border-primary/20">
-                        <div className="flex items-center gap-2 mb-4">
-                            <FaTag className="text-primary" />
-                            <h3 className="text-sm font-black text-secondary uppercase tracking-wider">Have a Promo Code?</h3>
-                        </div>
-                        
-                        {!appliedOffer ? (
-                            <div className="flex gap-3">
-                                <input
-                                    type="text"
-                                    value={offerCode}
-                                    onChange={(e) => setOfferCode(e.target.value.toUpperCase())}
-                                    placeholder="Enter code (e.g., SAVE50)"
-                                    className="flex-1 px-4 py-3 rounded-xl border border-primary/20 bg-white font-bold text-sm uppercase tracking-wider focus:outline-none focus:border-primary"
-                                />
-                                <button
-                                    onClick={handleApplyOffer}
-                                    disabled={validatingOffer}
-                                    className="px-6 py-3 bg-primary text-secondary rounded-xl font-black text-xs uppercase tracking-widest hover:bg-primary-dark transition-all disabled:opacity-50"
-                                >
-                                    {validatingOffer ? 'Checking...' : 'Apply'}
-                                </button>
+                    {product.activeOfferDetails && !appliedOffer && (
+                        <div className="bg-gradient-to-br from-orange-50 to-red-50 p-6 rounded-2xl border-2 border-orange-200">
+                            <div className="flex items-center gap-2 mb-4">
+                                <FaTag className="text-orange-600" />
+                                <h3 className="text-sm font-black text-orange-800 uppercase tracking-wider">Special Offer Available!</h3>
                             </div>
-                        ) : (
-                            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                        <FaTag />
+                            
+                            <div className="space-y-4">
+                                <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-orange-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="font-black text-orange-900 text-base uppercase">{product.activeOfferDetails.title}</p>
+                                        <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-black">
+                                            {product.activeOfferDetails.discountValue}{product.activeOfferDetails.discountType === 'percentage' ? '%' : '₹'} OFF
+                                        </span>
                                     </div>
-                                    <div>
-                                        <p className="font-black text-green-700 text-sm uppercase">{appliedOffer.code}</p>
-                                        <p className="text-xs text-green-600 font-bold">You saved ₹{appliedOffer.discount}!</p>
-                                    </div>
+                                    {product.activeOfferDetails.description && (
+                                        <p className="text-xs text-orange-700 font-medium">{product.activeOfferDetails.description}</p>
+                                    )}
+                                    <p className="text-xs text-orange-600 font-bold mt-2">Code: {product.activeOfferDetails.code}</p>
                                 </div>
                                 <button
-                                    onClick={handleRemoveOffer}
-                                    className="w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-200 transition-all"
+                                    onClick={handleApplyOffer}
+                                    disabled={applyingOffer || quantity > 1}
+                                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:from-orange-600 hover:to-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                                 >
-                                    <FaTimes size={14} />
+                                    {applyingOffer ? 'Applying...' : quantity > 1 ? 'Set Qty to 1 to Apply' : 'Apply Offer'}
                                 </button>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
+
+                    {appliedOffer && (
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-300">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                    <FaCheckCircle size={24} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="font-black text-green-700 text-base uppercase">{appliedOffer.title}</p>
+                                    <p className="text-sm text-green-600 font-bold">You saved ₹{appliedOffer.discount || appliedOffer.discountAmount}!</p>
+                                    <p className="text-xs text-green-500 font-medium mt-1">Offer successfully applied to your order</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="flex gap-4">
                         <button

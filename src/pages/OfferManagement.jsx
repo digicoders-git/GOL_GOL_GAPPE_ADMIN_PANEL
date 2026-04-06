@@ -375,10 +375,10 @@ const OfferManagement = () => {
                                     <label className="block text-sm font-medium mb-2">Max Uses</label>
                                     <input type="number" value={formData.maxUses} onChange={(e) => setFormData({ ...formData, maxUses: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
                                 </div>
-                                <div>
+                                {/* <div>
                                     <label className="block text-sm font-medium mb-2">Min Order Amount <span className="text-gray-400 font-normal text-xs">(coupon tabhi lagega)</span></label>
                                     <input type="number" value={formData.minOrderAmount} onChange={(e) => setFormData({ ...formData, minOrderAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. 200" />
-                                </div>
+                                </div> */}
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Expiry Date</label>
                                     <input type="date" value={formData.expiryDate} onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
