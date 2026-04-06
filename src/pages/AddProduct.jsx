@@ -255,6 +255,10 @@ const AddProduct = () => {
     };
 
     const handleEdit = (product) => {
+        // Only use URLs, not base64 strings
+        const cleanThumbnail = product.thumbnail && !product.thumbnail.startsWith('data:') ? product.thumbnail : '';
+        const cleanImages = (product.images || []).filter(img => img && !img.startsWith('data:'));
+        
         setFormData({
             name: product.name || '',
             shortName: product.shortName || '',
@@ -264,8 +268,8 @@ const AddProduct = () => {
             category: product.category || '',
             cuisineType: product.cuisineType?.join(', ') || '',
             tags: product.tags?.join(', ') || '',
-            images: product.images || [],
-            thumbnail: product.thumbnail || '',
+            images: cleanImages,
+            thumbnail: cleanThumbnail,
             videoUrl: product.videoUrl || '',
             price: product.price || '',
             discountPrice: product.discountPrice || '',
@@ -283,8 +287,8 @@ const AddProduct = () => {
             quantity: product.quantity || 0,
             minStock: product.minStock || 10
         });
-        setThumbnailPreview(product.thumbnail || '');
-        setGalleryPreviews(product.images || []);
+        setThumbnailPreview(cleanThumbnail);
+        setGalleryPreviews(cleanImages);
         setVideoPreview(product.videoUrl || '');
         setIsEditing(true);
         setCurrentId(product._id || product.id);
@@ -989,19 +993,23 @@ const AddProduct = () => {
                             </div>
                         </div>
 
-                        <div className="max-h-[700px] overflow-y-auto">
+                                        <div className="max-h-[700px] overflow-y-auto">
                             {loading ? (
                                 <div className="p-8 text-center">
                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                                     <p className="text-xs text-zinc-400 mt-2">Loading products...</p>
                                 </div>
                             ) : filteredProducts.length > 0 ? (
-                                filteredProducts.map((product) => (
+                                filteredProducts.map((product) => {
+                                    // Only show URL images, not base64
+                                    const displayThumbnail = product.thumbnail && !product.thumbnail.startsWith('data:') ? product.thumbnail : null;
+                                    
+                                    return (
                                     <div key={product._id} className="p-5 border-b border-zinc-50 hover:bg-zinc-50/80 transition-all group">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 rounded-2xl bg-zinc-100 overflow-hidden shrink-0 border border-zinc-200">
-                                                {product.thumbnail ? (
-                                                    <img src={product.thumbnail} alt={product.name} className="w-full h-full object-cover" />
+                                                {displayThumbnail ? (
+                                                    <img src={displayThumbnail} alt={product.name} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-zinc-400 font-black text-lg">
                                                         {product.name?.charAt(0)}
@@ -1024,7 +1032,8 @@ const AddProduct = () => {
                                             </div>
                                         </div>
                                     </div>
-                                ))
+                                    );
+                                })
                             ) : (
                                 <div className="p-8 text-center">
                                     <MdInventory size={48} className="text-zinc-200 mx-auto mb-3" />
