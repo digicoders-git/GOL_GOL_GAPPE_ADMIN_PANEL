@@ -84,11 +84,12 @@ const DayWiseStock = () => {
                     // Calculate ACTUAL Assigned (Sum of transfers)
                     // If in Warehouse view, Assigned is effectively 0 for the purpose of "moves".
                     // If in Kitchen view, Assigned is what was sent to kitchens.
-                    const productTransfers = transfers.filter(t => 
-                        (t.product?._id?.toString() === item._id?.toString() || 
-                         t.product?.toString() === item._id?.toString()) &&
-                        t.status === 'success'
-                    );
+                    const productTransfers = transfers.filter(t => {
+                        if (!t.product || !item._id) return false;
+                        const productId = t.product?._id?.toString() || t.product?.toString();
+                        const itemId = item._id?.toString();
+                        return productId === itemId && t.status === 'success';
+                    });
                     const totalAssigned = productTransfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
 
                     // Convert selectedDate to ISO date string for comparison
