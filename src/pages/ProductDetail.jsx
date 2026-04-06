@@ -18,15 +18,44 @@ const ProductDetail = () => {
     const [product, setProduct] = useState(null);
     const [kitchens, setKitchens] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [quantity, setQuantity] = useState(1);
+    const [quantity, setQuantity] = useState(() => {
+        // If offer is applied, quantity should be 1
+        const savedOffer = localStorage.getItem(`appliedOffer_${id}`);
+        return savedOffer ? 1 : 1;
+    });
     const [ordering, setOrdering] = useState(false);
     const [selectedKitchen, setSelectedKitchen] = useState(null);
-    const [appliedOffer, setAppliedOffer] = useState(null);
+    const [appliedOffer, setAppliedOffer] = useState(() => {
+        // Load applied offer from localStorage on mount
+        const savedOffer = localStorage.getItem(`appliedOffer_${id}`);
+        return savedOffer ? JSON.parse(savedOffer) : null;
+    });
     const [applyingOffer, setApplyingOffer] = useState(false);
 
     useEffect(() => {
         fetchProductDetails();
+        
+        // Cleanup: Remove applied offer from localStorage when component unmounts
+        return () => {
+            // Don't remove on unmount, only on successful order
+        };
     }, [id]);
+
+    // Sync quantity with applied offer state
+    useEffect(() => {
+        if (appliedOffer && quantity !== 1) {
+            setQuantity(1);
+        }
+    }, [appliedOffer]);
+
+    // Save applied offer to localStorage whenever it changes
+    useEffect(() => {
+        if (appliedOffer) {
+            localStorage.setItem(`appliedOffer_${id}`, JSON.stringify(appliedOffer));
+        } else {
+            localStorage.removeItem(`appliedOffer_${id}`);
+        }
+    }, [appliedOffer, id]);
 
     const fetchProductDetails = async () => {
         try {
@@ -186,6 +215,9 @@ const ProductDetail = () => {
 
             const response = await createOrder(orderData);
             if (response.data.success) {
+                // Clear applied offer from localStorage after successful order
+                localStorage.removeItem(`appliedOffer_${id}`);
+                
                 confetti({
                     particleCount: 150,
                     spread: 70,
@@ -279,10 +311,20 @@ const ProductDetail = () => {
 
     const handleQuantityChange = (newQuantity) => {
         if (appliedOffer && newQuantity > 1) {
-            toast.error('Offer is applied. Cannot change quantity.');
+            toast.error('Offer is applied. Remove offer first to change quantity.');
             return;
         }
+        if (newQuantity > 1 && appliedOffer) {
+            // Auto-remove offer if quantity changes
+            setAppliedOffer(null);
+            toast.info('Offer removed due to quantity change');
+        }
         setQuantity(newQuantity);
+    };
+
+    const handleRemoveOffer = () => {
+        setAppliedOffer(null);
+        toast.success('Offer removed successfully');
     };
 
     const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
@@ -435,18 +477,31 @@ const ProductDetail = () => {
                         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-primary/10 shadow-sm">
                             <button
                                 onClick={() => handleQuantityChange(Math.max(1, quantity - 1))}
-                                className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 font-black text-xl flex items-center justify-center hover:bg-orange-100 active:scale-95 transition-all"
+                                disabled={appliedOffer}
+                                className={`w-10 h-10 rounded-xl font-black text-xl flex items-center justify-center transition-all ${
+                                    appliedOffer 
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                        : 'bg-orange-50 text-orange-600 hover:bg-orange-100 active:scale-95'
+                                }`}
                             >
                                 -
                             </button>
                             <span className="w-8 text-center font-black text-lg text-secondary">{quantity}</span>
                             <button
                                 onClick={() => handleQuantityChange(quantity + 1)}
-                                className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 font-black text-xl flex items-center justify-center hover:bg-orange-100 active:scale-95 transition-all"
+                                disabled={appliedOffer}
+                                className={`w-10 h-10 rounded-xl font-black text-xl flex items-center justify-center transition-all ${
+                                    appliedOffer 
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                        : 'bg-orange-50 text-orange-600 hover:bg-orange-100 active:scale-95'
+                                }`}
                             >
                                 +
                             </button>
                         </div>
+                        {appliedOffer && (
+                            <p className="text-xs text-orange-600 font-bold italic">Remove offer to change quantity</p>
+                        )}
                         <div className="text-right">
                             <p className="text-xs font-bold text-secondary/30 uppercase tracking-widest mb-1">Total Amount</p>
                             <p className="text-4xl font-black text-secondary">₹{calculateTotal()}</p>
@@ -486,15 +541,23 @@ const ProductDetail = () => {
 
                     {appliedOffer && (
                         <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-300">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                    <FaCheckCircle size={24} />
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                        <FaCheckCircle size={24} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-black text-green-700 text-base uppercase">{appliedOffer.title}</p>
+                                        <p className="text-sm text-green-600 font-bold">You saved ₹{appliedOffer.discount || appliedOffer.discountAmount}!</p>
+                                        <p className="text-xs text-green-500 font-medium mt-1">Offer successfully applied to your order</p>
+                                    </div>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="font-black text-green-700 text-base uppercase">{appliedOffer.title}</p>
-                                    <p className="text-sm text-green-600 font-bold">You saved ₹{appliedOffer.discount || appliedOffer.discountAmount}!</p>
-                                    <p className="text-xs text-green-500 font-medium mt-1">Offer successfully applied to your order</p>
-                                </div>
+                                <button
+                                    onClick={handleRemoveOffer}
+                                    className="px-4 py-2 bg-red-100 text-red-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-200 transition-all"
+                                >
+                                    Remove
+                                </button>
                             </div>
                         </div>
                     )}
