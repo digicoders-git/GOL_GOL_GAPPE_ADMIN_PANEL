@@ -324,8 +324,11 @@ const Dashboard = () => {
             if (dashboardRes.success) {
                 const { stats, recentBills, products, kitchens } = dashboardRes;
 
+                // Calculate total revenue from all bills if todayRevenue is not available
+                const totalRevenue = stats.todayRevenue || recentBills?.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0) || 0;
+
                 setStats([
-                    { title: 'Total Revenue', value: `₹${stats.todayRevenue?.toLocaleString() || 0}`, icon: <MdAttachMoney />, color: 'text-blue-600', bg: 'bg-blue-50', trend: 'Today', isUp: true, rawValue: stats.todayRevenue },
+                    { title: 'Total Revenue', value: `₹${totalRevenue.toLocaleString()}`, icon: <MdAttachMoney />, color: 'text-blue-600', bg: 'bg-blue-50', trend: 'Today', isUp: true, rawValue: totalRevenue },
                     { title: 'Total Orders', value: stats.totalBills?.toString() || '0', icon: <MdShoppingCart />, color: 'text-orange-600', bg: 'bg-orange-50', trend: 'Live', isUp: true, rawValue: stats.totalBills },
                     { title: 'Active Kitchens', value: stats.totalKitchens?.toString() || '0', icon: <MdRestaurant />, color: 'text-purple-600', bg: 'bg-purple-50', trend: 'Total', isUp: true, rawValue: stats.totalKitchens },
                     { title: 'Low Stock', value: stats.lowStockCount?.toString() || '0', icon: <MdWarning />, color: 'text-red-600', bg: 'bg-red-50', trend: 'Items', isUp: false, rawValue: stats.lowStockCount },

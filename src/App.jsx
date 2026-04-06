@@ -14,6 +14,7 @@ const OrderMenu = lazy(() => import('./pages/OrderMenu'));
 const AddQuantity = lazy(() => import('./pages/AddQuantity'));
 const AddProduct = lazy(() => import('./pages/AddProduct'));
 const AddBilling = lazy(() => import('./pages/AddBilling'));
+const CreateBill = lazy(() => import('./pages/CreateBill'));
 const ProductQuantity = lazy(() => import('./pages/ProductQuantity'));
 const ProductAssign = lazy(() => import('./pages/ProductAssign'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -78,6 +79,7 @@ function App() {
             <Route path="offers" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><OfferManagement /></ProtectedRoute>} />
 
             <Route path="order-assign" element={<ProtectedRoute allowedRoles={['super_admin', 'billing_admin']}><AddBilling /></ProtectedRoute>} />
+            <Route path="create-bill" element={<ProtectedRoute allowedRoles={['super_admin', 'billing_admin']}><CreateBill /></ProtectedRoute>} />
             <Route path="product-assign" element={<ProtectedRoute allowedRoles={['super_admin', 'billing_admin']}><ProductAssign /></ProtectedRoute>} />
 
             <Route path="my-inventory" element={<ProtectedRoute allowedRoles={['billing_admin', 'kitchen_admin']}><MyInventory /></ProtectedRoute>} />

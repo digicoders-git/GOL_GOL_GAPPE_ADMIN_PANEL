@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { getBills, getKitchenOrders, getKitchens, updateBill, updateBillStatus, getMyKitchenOrders, getMyKitchen } from '../utils/api';
 import Highcharts from 'highcharts';
@@ -34,6 +35,7 @@ import { FaUtensils } from 'react-icons/fa';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const BillingManagement = () => {
+    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [currentPage, setCurrentPage] = useState(1);
@@ -43,6 +45,7 @@ const BillingManagement = () => {
 
     const [selectedBillForAssignment, setSelectedBillForAssignment] = useState(null);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash');
+    const [billPaymentMethods, setBillPaymentMethods] = useState({}); // Track payment method per bill
     const [kitchens, setKitchens] = useState([]);
     const [assigning, setAssigning] = useState(false);
     const [selectedTxForReceipt, setSelectedTxForReceipt] = useState(null);
@@ -208,6 +211,44 @@ const BillingManagement = () => {
             socket.disconnect();
         };
     }, []);
+
+    const handleQuickAssign = async (tx) => {
+        const paymentMethod = billPaymentMethods[tx._id];
+        if (!paymentMethod) {
+            toast.error('Please select payment method first');
+            return;
+        }
+
+        // Get first available kitchen
+        const firstKitchen = kitchens[0];
+        if (!firstKitchen) {
+            toast.error('No kitchen available');
+            return;
+        }
+
+        try {
+            setAssigning(true);
+            // Update payment method and assign kitchen
+            await updateBill(tx._id, { 
+                paymentMethod: paymentMethod,
+                kitchen: firstKitchen._id 
+            });
+            // Update status to assigned
+            await updateBillStatus(tx._id, 'Assigned_to_Kitchen');
+            toast.success(`Payment set & assigned to ${firstKitchen.name}`);
+            // Clear the payment method from state
+            setBillPaymentMethods(prev => {
+                const newState = { ...prev };
+                delete newState[tx._id];
+                return newState;
+            });
+            fetchBills();
+        } catch (error) {
+            toast.error('Failed to assign order');
+        } finally {
+            setAssigning(false);
+        }
+    };
 
     const handleAssignToKitchen = async (kitchenId) => {
         if (!selectedBillForAssignment) return;
@@ -607,6 +648,9 @@ const BillingManagement = () => {
                 </motion.div>
 
                 <div className="flex items-center gap-3">
+                    <button onClick={() => navigate('/create-bill')} className="bg-primary text-secondary px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/10 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer">
+                        Create New Bill
+                    </button>
                     <button onClick={handleExport} className="bg-white border-2 border-zinc-100 p-3 rounded-xl text-secondary hover:border-primary transition-all shadow-sm group cursor-pointer">
                         <MdFileDownload size={20} className="group-hover:scale-110 transition-transform text-zinc-400 group-hover:text-primary" />
                     </button>
@@ -770,17 +814,15 @@ const BillingManagement = () => {
                                                                     <MdPayment className="text-zinc-300" size={16} />
                                                                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{tx.method}</span>
                                                                 </>
-                                                            ) : (
+                                                            ) : tx.rawStatus === 'Pending' ? (
                                                                 <select
-                                                                    value={tx.method || ''}
+                                                                    value={billPaymentMethods[tx._id] || ''}
                                                                     onChange={(e) => {
                                                                         const newMethod = e.target.value;
-                                                                        updateBillStatus(tx._id, tx.rawStatus).then(() => {
-                                                                            updateBill(tx._id, { paymentMethod: newMethod }).then(() => {
-                                                                                toast.success('Payment method updated');
-                                                                                fetchBills();
-                                                                            });
-                                                                        });
+                                                                        setBillPaymentMethods(prev => ({
+                                                                            ...prev,
+                                                                            [tx._id]: newMethod
+                                                                        }));
                                                                     }}
                                                                     className="px-3 py-1.5 bg-white border-2 border-primary rounded-lg text-[10px] font-black text-secondary uppercase tracking-[0.2em] cursor-pointer focus:outline-none hover:border-secondary transition-all"
                                                                 >
@@ -788,25 +830,24 @@ const BillingManagement = () => {
                                                                     <option value="Cash">Cash</option>
                                                                     <option value="Online">Online</option>
                                                                 </select>
+                                                            ) : (
+                                                                <>
+                                                                    <MdPayment className="text-zinc-300" size={16} />
+                                                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">{tx.method || 'N/A'}</span>
+                                                                </>
                                                             )}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center justify-center gap-2">
-                                                            {/* <button
-                                                                onClick={() => window.open('/add-billing', '_blank')}
-                                                                className="px-4 py-2 bg-primary text-secondary rounded-lg text-xs font-black uppercase hover:scale-105 transition-all shadow-lg"
-                                                            >
-                                                                Generate Bill
-                                                            </button> */}
-                                                            {tx.rawStatus === 'Pending' && (
+                                                            {tx.rawStatus === 'Pending' && billPaymentMethods[tx._id] && (
                                                                 <button
-                                                                    onClick={() => setSelectedBillForAssignment(tx)}
-                                                                    className="w-9 h-9 bg-primary text-secondary rounded-lg hover:bg-secondary hover:text-primary transition-all border border-primary flex items-center justify-center cursor-pointer group/assign relative shadow-lg shadow-primary/20"
+                                                                    onClick={() => handleQuickAssign(tx)}
+                                                                    disabled={assigning}
+                                                                    className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                                                                     title="Assign to Kitchen"
                                                                 >
-                                                                    <FaUtensils size={14} />
-                                                                    <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-secondary text-primary text-[8px] font-black px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/assign:opacity-100 transition-opacity border border-primary/20">Assign Kitchen</span>
+                                                                    {assigning ? 'Assigning...' : 'Assign'}
                                                                 </button>
                                                             )}
                                                             <button onClick={() => handleView(tx)} className="w-9 h-9 bg-zinc-50 hover:bg-white rounded-lg text-zinc-400 hover:text-primary hover:shadow-md transition-all border border-transparent hover:border-zinc-100 flex items-center justify-center cursor-pointer">
@@ -955,7 +996,7 @@ const BillingManagement = () => {
                                 </div>
 
                                 {/* Payment Method Selection */}
-                                <div className="bg-zinc-50 p-1.5 rounded-2xl border border-zinc-100 flex gap-2">
+                                {/* <div className="bg-zinc-50 p-1.5 rounded-2xl border border-zinc-100 flex gap-2">
                                     {['Cash', 'Online'].map((method) => (
                                         <button
                                             key={method}
@@ -965,7 +1006,7 @@ const BillingManagement = () => {
                                             {method}
                                         </button>
                                     ))}
-                                </div>
+                                </div> */}
 
                                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                                     {kitchens.length > 0 ? kitchens.map(kitchen => {
