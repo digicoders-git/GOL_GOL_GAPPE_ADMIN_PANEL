@@ -500,7 +500,7 @@ const ProductDetail = () => {
                             </button>
                         </div>
                         {appliedOffer && (
-                            <p className="text-xs text-orange-600 font-bold italic">Remove offer to change quantity</p>
+                            <p className="text-xs text-orange-600 font-bold italic"></p>
                         )}
                         <div className="text-right">
                             <p className="text-xs font-bold text-secondary/30 uppercase tracking-widest mb-1">Total Amount</p>
