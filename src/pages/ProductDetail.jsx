@@ -128,9 +128,23 @@ const ProductDetail = () => {
         const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
         const itemTotal = effectivePrice * quantity;
         const packagingCharge = product.packagingCharge || 0;
-        const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
         const discount = appliedOffer ? (appliedOffer.discount || appliedOffer.discountAmount || 0) : 0;
-        const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
+        
+        // Calculate based on offer applied or not
+        let finalItemPrice = itemTotal;
+        let gstAmount = 0;
+        let totalAmount = 0;
+        
+        if (appliedOffer) {
+            // Offer applied: discount from item price first
+            finalItemPrice = itemTotal - discount;
+            gstAmount = product.gstPercent ? (finalItemPrice * product.gstPercent) / 100 : 0;
+            totalAmount = finalItemPrice + packagingCharge + gstAmount;
+        } else {
+            // No offer: normal calculation
+            gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
+            totalAmount = itemTotal + packagingCharge + gstAmount;
+        }
 
         const result = await Swal.fire({
             title: `<span class="text-2xl font-black text-secondary uppercase italic tracking-tighter">Confirm Your Cravings</span>`,
@@ -140,21 +154,41 @@ const ProductDetail = () => {
                         <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Item</span>
                         <span class="text-sm font-black text-secondary">${product.name} x ${quantity}</span>
                     </div>
-                    ${(product.discountPrice && product.discountPrice < product.price) ? `
+                    <div class="flex justify-between items-center bg-zinc-50 p-4 rounded-2xl border border-dashed border-zinc-200">
+                        <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Base Price</span>
+                        <span class="text-sm font-black text-secondary">₹${effectivePrice}</span>
+                    </div>
+                    ${appliedOffer ? `
+                    <div class="flex justify-between items-center bg-green-50 p-4 rounded-2xl border border-green-200">
+                        <span class="text-[10px] font-black text-green-600 uppercase tracking-widest">Offer Discount (${appliedOffer.title || appliedOffer.code})</span>
+                        <span class="text-sm font-black text-green-600">-₹${discount}</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-emerald-50 p-4 rounded-2xl border border-emerald-200">
+                        <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Price After Discount</span>
+                        <span class="text-sm font-black text-emerald-600">₹${finalItemPrice}</span>
+                    </div>
+                    ` : ''}
+                    ${(product.discountPrice && product.discountPrice < product.price && !appliedOffer) ? `
                     <div class="flex justify-between items-center bg-orange-50 p-4 rounded-2xl border border-orange-200">
                         <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">Price Discount</span>
                         <span class="text-sm font-black text-orange-600"><s>₹${product.price}</s> → ₹${product.discountPrice}/unit</span>
                     </div>
                     ` : ''}
-                    ${appliedOffer ? `
-                    <div class="flex justify-between items-center bg-green-50 p-4 rounded-2xl border border-green-200">
-                        <span class="text-[10px] font-black text-green-600 uppercase tracking-widest">Discount (${appliedOffer.title || appliedOffer.code})</span>
-                        <span class="text-sm font-black text-green-600">-₹${discount}</span>
+                    ${packagingCharge > 0 ? `
+                    <div class="flex justify-between items-center bg-zinc-50 p-4 rounded-2xl border border-dashed border-zinc-200">
+                        <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Packaging</span>
+                        <span class="text-sm font-black text-secondary">₹${packagingCharge}</span>
+                    </div>
+                    ` : ''}
+                    ${gstAmount > 0 ? `
+                    <div class="flex justify-between items-center bg-zinc-50 p-4 rounded-2xl border border-dashed border-zinc-200">
+                        <span class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">GST (${product.gstPercent}%)</span>
+                        <span class="text-sm font-black text-secondary">₹${gstAmount.toFixed(2)}</span>
                     </div>
                     ` : ''}
                     <div class="flex justify-between items-center bg-primary/10 p-4 rounded-2xl border border-primary/20">
-                        <span class="text-[10px] font-black text-primary-dark uppercase tracking-widest">Total Valuation</span>
-                        <span class="text-xl font-black text-secondary">₹${totalAmount}</span>
+                        <span class="text-[10px] font-black text-primary-dark uppercase tracking-widest">Final Amount</span>
+                        <span class="text-xl font-black text-secondary">₹${totalAmount.toFixed(2)}</span>
                     </div>
                     <p class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest text-center mt-4">Safe & Secure Payment via Cash on Delivery</p>
                 </div>
@@ -195,23 +229,48 @@ const ProductDetail = () => {
             const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
             const itemTotal = effectivePrice * quantity;
             const packagingCharge = product.packagingCharge || 0;
-            const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
             const discount = appliedOffer ? (appliedOffer.discount || appliedOffer.discountAmount || 0) : 0;
-            const totalAmount = itemTotal + packagingCharge + gstAmount - discount;
+            
+            // Calculate final amounts
+            let finalItemPrice = itemTotal;
+            let gstAmount = 0;
+            let totalAmount = 0;
+            
+            if (appliedOffer) {
+                // Offer applied: discount from item price first
+                finalItemPrice = itemTotal - discount;
+                gstAmount = product.gstPercent ? (finalItemPrice * product.gstPercent) / 100 : 0;
+                totalAmount = finalItemPrice + packagingCharge + gstAmount;
+            } else {
+                // No offer: normal calculation
+                gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
+                totalAmount = itemTotal + packagingCharge + gstAmount;
+            }
 
             const orderData = {
                 items: [
                     {
                         product: product._id,
                         quantity: quantity,
-                        price: (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price
+                        price: effectivePrice // Original price before offer
                     }
                 ],
-                totalAmount: totalAmount,
+                totalAmount: Math.round(totalAmount), // Final amount after all calculations
                 paymentMethod: 'Cash',
                 paymentStatus: 'Pending',
                 offerCode: appliedOffer ? (appliedOffer.code || product.activeOfferDetails?.code) : null
             };
+
+            console.log('Order Data:', orderData);
+            console.log('Price Breakdown:', {
+                basePrice: effectivePrice,
+                itemTotal,
+                discount,
+                finalItemPrice,
+                packagingCharge,
+                gstAmount,
+                totalAmount
+            });
 
             const response = await createOrder(orderData);
             if (response.data.success) {
@@ -295,8 +354,13 @@ const ProductDetail = () => {
             );
 
             if (response.data.success) {
-                setAppliedOffer(response.data.offer);
-                toast.success(`🎉 ${response.data.offer.title} Applied! Saved ₹${response.data.priceBreakdown.savings}`, {
+                const offerDiscount = response.data.priceBreakdown.savings;
+                setAppliedOffer({
+                    ...response.data.offer,
+                    discount: offerDiscount,
+                    discountAmount: offerDiscount
+                });
+                toast.success(`🎉 ${response.data.offer.title} Applied! Final Price: ₹${effectivePrice - offerDiscount}`, {
                     duration: 4000,
                     icon: '🎉'
                 });
@@ -310,21 +374,11 @@ const ProductDetail = () => {
     };
 
     const handleQuantityChange = (newQuantity) => {
-        if (appliedOffer && newQuantity > 1) {
-            toast.error('Offer is applied. Remove offer first to change quantity.');
+        if (appliedOffer) {
+            toast.error('Offer is applied. Cannot change quantity until order is placed.');
             return;
         }
-        if (newQuantity > 1 && appliedOffer) {
-            // Auto-remove offer if quantity changes
-            setAppliedOffer(null);
-            toast.info('Offer removed due to quantity change');
-        }
         setQuantity(newQuantity);
-    };
-
-    const handleRemoveOffer = () => {
-        setAppliedOffer(null);
-        toast.success('Offer removed successfully');
     };
 
     const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
@@ -335,7 +389,15 @@ const ProductDetail = () => {
         const packagingCharge = product.packagingCharge || 0;
         const gstAmount = product.gstPercent ? (itemTotal * product.gstPercent) / 100 : 0;
         const discount = appliedOffer ? (appliedOffer.discount || appliedOffer.discountAmount || 0) : 0;
-        return itemTotal + packagingCharge + gstAmount - discount;
+        
+        // If offer applied, show discounted price directly
+        if (appliedOffer) {
+            const discountedItemTotal = itemTotal - discount;
+            const discountedGst = product.gstPercent ? (discountedItemTotal * product.gstPercent) / 100 : 0;
+            return discountedItemTotal + packagingCharge + discountedGst;
+        }
+        
+        return itemTotal + packagingCharge + gstAmount;
     };
 
     return (
@@ -500,7 +562,7 @@ const ProductDetail = () => {
                             </button>
                         </div>
                         {appliedOffer && (
-                            <p className="text-xs text-orange-600 font-bold italic"></p>
+                            <p className="text-xs text-green-600 font-bold italic">Offer applied! Quantity locked at 1</p>
                         )}
                         <div className="text-right">
                             <p className="text-xs font-bold text-secondary/30 uppercase tracking-widest mb-1">Total Amount</p>
@@ -541,23 +603,15 @@ const ProductDetail = () => {
 
                     {appliedOffer && (
                         <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-300">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
-                                        <FaCheckCircle size={24} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="font-black text-green-700 text-base uppercase">{appliedOffer.title}</p>
-                                        <p className="text-sm text-green-600 font-bold">You saved ₹{appliedOffer.discount || appliedOffer.discountAmount}!</p>
-                                        <p className="text-xs text-green-500 font-medium mt-1">Offer successfully applied to your order</p>
-                                    </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white">
+                                    <FaCheckCircle size={24} />
                                 </div>
-                                <button
-                                    onClick={handleRemoveOffer}
-                                    className="px-4 py-2 bg-red-100 text-red-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-200 transition-all"
-                                >
-                                    Remove
-                                </button>
+                                <div className="flex-1">
+                                    <p className="font-black text-green-700 text-base uppercase">{appliedOffer.title}</p>
+                                    <p className="text-sm text-green-600 font-bold">Discount: ₹{appliedOffer.discount || appliedOffer.discountAmount}</p>
+                                    <p className="text-xs text-green-500 font-medium mt-1">Final Price: ₹{effectivePrice - (appliedOffer.discount || appliedOffer.discountAmount || 0)}</p>
+                                </div>
                             </div>
                         </div>
                     )}

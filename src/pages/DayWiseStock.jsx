@@ -85,9 +85,10 @@ const DayWiseStock = () => {
                     // If in Warehouse view, Assigned is effectively 0 for the purpose of "moves".
                     // If in Kitchen view, Assigned is what was sent to kitchens.
                     const productTransfers = transfers.filter(t => {
-                        if (!t.product || !item._id) return false;
-                        const productId = t.product?._id?.toString() || t.product?.toString();
-                        const itemId = item._id?.toString();
+                        if (!t.product || !item || !item._id) return false;
+                        const productId = t.product?._id?.toString() || t.product?.toString?.() || '';
+                        const itemId = item._id?.toString?.() || '';
+                        if (!productId || !itemId) return false;
                         return productId === itemId && t.status === 'success';
                     });
                     const totalAssigned = productTransfers.reduce((sum, t) => sum + (t.quantity || 0), 0);
@@ -97,9 +98,12 @@ const DayWiseStock = () => {
 
                     // Filter logs for this product and date
                     const itemLogs = logs.filter(l => {
-                        if (!l.product || !l.product._id || !l.createdAt) return false;
+                        if (!l.product || !l.product._id || !l.createdAt || !item || !item._id) return false;
                         const logDateStr = new Date(l.createdAt).toISOString().split('T')[0];
-                        return l.product._id.toString() === item._id.toString() && logDateStr === selectedDateStr;
+                        const logProductId = l.product._id?.toString?.() || '';
+                        const itemId = item._id?.toString?.() || '';
+                        if (!logProductId || !itemId) return false;
+                        return logProductId === itemId && logDateStr === selectedDateStr;
                     });
 
                     const added = itemLogs.filter(l => l.type === 'ADD').reduce((acc, curr) => acc + (curr.quantity || 0), 0);

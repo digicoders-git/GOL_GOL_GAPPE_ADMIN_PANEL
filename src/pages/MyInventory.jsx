@@ -19,7 +19,7 @@ const MyInventory = () => {
             const invRes = await getUserInventory();
             
             if (invRes.data.success) {
-                console.log('Inventory data:', invRes.data.inventory);
+                // console.log('Inventory data:', invRes.data.inventory);
                 setInventory(invRes.data.inventory || []);
             }
         } catch (error) {
@@ -44,7 +44,7 @@ const MyInventory = () => {
 
         // Listen for stock updates
         socket.on('stock-updated', () => {
-            console.log('Stock update received from server');
+            // console.log('Stock update received from server');
             if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
             refreshTimeoutRef.current = setTimeout(() => {
                 fetchData();
@@ -52,7 +52,7 @@ const MyInventory = () => {
         });
 
         socket.on('kitchen-stock-updated', () => {
-            console.log('Kitchen stock update received');
+            // console.log('Kitchen stock update received');
             if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
             refreshTimeoutRef.current = setTimeout(() => {
                 fetchData();

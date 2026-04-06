@@ -85,6 +85,26 @@ const KitchenManagement = () => {
             }, 500);
         });
 
+        // Listen for order assignments - THIS UPDATES LIVE ORDERS COUNT
+        socket.on('order-assigned', (data) => {
+            console.log('Order assigned to kitchen:', data);
+            setLastUpdate(new Date());
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = setTimeout(() => {
+                fetchFleetData();
+            }, 500);
+        });
+
+        // Listen for order status updates
+        socket.on('order-status-updated', (data) => {
+            console.log('Order status updated:', data);
+            setLastUpdate(new Date());
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            refreshTimeoutRef.current = setTimeout(() => {
+                fetchFleetData();
+            }, 500);
+        });
+
         return () => {
             if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
             socket.disconnect();
@@ -195,18 +215,27 @@ const KitchenManagement = () => {
                 });
                 
                 const completed = kitchenBills.filter(b => b.status === 'Completed' || b.status === 'Delivered').length;
+                
+                // Count ACTIVE orders (Pending, Assigned, Processing, Ready)
                 const active = kitchenBills.filter(b => 
-                    ['Assigned to Kitchen', 'Processing', 'Ready', 'Pending'].includes(b.status)
+                    ['Assigned to Kitchen', 'Assigned_to_Kitchen', 'Processing', 'Ready', 'Pending'].includes(b.status)
                 ).length;
 
-                // Calculate total assigned stock units for Payload
-                const assignedStockVolume = (k.assignedProducts || []).reduce((acc, curr) => acc + (Number(curr.assigned) || 0), 0);
+                // Calculate total assigned stock and remaining stock
+                const assignedProducts = k.assignedProducts || [];
+                const totalAssignedStock = assignedProducts.reduce((sum, ap) => sum + (Number(ap.assigned) || 0), 0);
+                const totalUsedStock = assignedProducts.reduce((sum, ap) => sum + (Number(ap.used) || 0), 0);
+                const remainingStock = totalAssignedStock - totalUsedStock;
+
+                // Get assigned and completed orders count from backend
+                const assignedOrdersCount = k.assignedOrdersCount || 0;
+                const completedOrdersCount = k.completedOrdersCount || 0;
 
                 const efficiencyNum = kitchenBills.length > 0
                     ? (completed / kitchenBills.length) * 100
                     : (parseFloat(k.performance) || 0);
 
-                const loadFactor = active > 0 ? (active > 10 ? 95 : active * 10) : (assignedStockVolume > 0 ? 50 : 0);
+                const loadFactor = active > 0 ? (active > 10 ? 95 : active * 10) : (remainingStock > 0 ? 50 : 0);
 
                 return {
                     id: k._id || k.id,
@@ -216,7 +245,11 @@ const KitchenManagement = () => {
                     manager: k.manager || k.admin?.name || 'N/A', 
                     contact: k.phone || 'N/A',
                     status: k.status === 'Active' ? 'Active' : 'Offline',
-                    orders: assignedStockVolume, // Show Stock Units in Payload
+                    assignedOrders: assignedOrdersCount,
+                    completedOrders: completedOrdersCount,
+                    stockPayload: remainingStock, // Show remaining stock (assigned - used)
+                    totalAssigned: totalAssignedStock,
+                    totalUsed: totalUsedStock,
                     performance: efficiencyNum.toFixed(1) + '%',
                     temperature: (24 + (active > 5 ? 4 : 0) + Math.random() * 2).toFixed(0) + '°C',
                     load: loadFactor + '%'
@@ -686,12 +719,12 @@ const KitchenManagement = () => {
             </div>
 
             {/* --- Global Telemetry --- */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {[
                     { label: 'Active Units', value: kitchens.length.toString(), sub: 'Nodes Online', icon: <MdOutlineKitchen />, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'Live Orders', value: kitchens.reduce((sum, k) => sum + (parseInt(k.orders) || 0), 0).toString(), sub: 'In Processing', icon: <MdTimer />, color: 'text-orange-600', bg: 'bg-orange-50' },
-                    { label: 'Avg Perf.', value: (kitchens.length > 0 ? (kitchens.reduce((sum, k) => sum + parseFloat(k.performance), 0) / kitchens.length).toFixed(1) : '0') + '%', sub: 'Fleet Grade', icon: <MdTrendingUp />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Core Temp', value: '24°C', sub: 'Stable State', icon: <MdLocalFireDepartment />, color: 'text-red-600', bg: 'bg-red-50' }
+                    { label: 'Assigned Orders', value: kitchens.reduce((sum, k) => sum + (parseInt(k.assignedOrders) || 0), 0).toString(), sub: 'To Kitchens', icon: <MdTimer />, color: 'text-orange-600', bg: 'bg-orange-50' },
+                    { label: 'Completed Orders', value: kitchens.reduce((sum, k) => sum + (parseInt(k.completedOrders) || 0), 0).toString(), sub: 'Finished', icon: <MdCheckCircle />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Avg Perf.', value: (kitchens.length > 0 ? (kitchens.reduce((sum, k) => sum + parseFloat(k.performance), 0) / kitchens.length).toFixed(1) : '0') + '%', sub: 'Fleet Grade', icon: <MdTrendingUp />, color: 'text-purple-600', bg: 'bg-purple-50' },
                 ].map((stat, i) => (
                     <div key={i} className="bg-white p-4 rounded-2xl border border-zinc-100 shadow-sm flex items-center gap-3.5 group hover:border-primary/30 transition-all">
                         <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform`}>
@@ -797,7 +830,7 @@ const KitchenManagement = () => {
                                     </div>
 
                                     {/* Operational Telemetry */}
-                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 py-2">
+                                    <div className="grid grid-cols-3 sm:grid-cols-7 gap-4 py-2">
                                         <div>
                                             <p className="text-[7px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">Command</p>
                                             <div className="flex items-center gap-1 text-secondary font-black text-[10px] uppercase">
@@ -806,10 +839,24 @@ const KitchenManagement = () => {
                                             </div>
                                         </div>
                                         <div>
-                                            <p className="text-[7px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">Payload</p>
+                                            <p className="text-[7px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">Stock Left</p>
+                                            <div className="flex items-center gap-1 text-secondary font-black text-[10px]">
+                                                <MdInventory className="text-purple-500 text-[11px]" />
+                                                {kitchen.stockPayload} Units
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-[7px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">Assigned</p>
                                             <div className="flex items-center gap-1 text-secondary font-black text-[10px]">
                                                 <MdTimer className="text-orange-500 text-[11px]" />
-                                                {kitchen.orders} Units
+                                                {kitchen.assignedOrders}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-[7px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">Completed</p>
+                                            <div className="flex items-center gap-1 text-secondary font-black text-[10px]">
+                                                <MdCheckCircle className="text-emerald-500 text-[11px]" />
+                                                {kitchen.completedOrders}
                                             </div>
                                         </div>
                                         <div>
@@ -915,7 +962,9 @@ const KitchenManagement = () => {
                                         <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest">Kitchen Node</th>
                                         <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest">Operational Status</th>
                                         <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest">Manager</th>
-                                        <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest text-center">Payload</th>
+                                        <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest text-center">Stock Left</th>
+                                        <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest text-center">Assigned</th>
+                                        <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest text-center">Completed</th>
                                         <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest text-center">Health</th>
                                         <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest text-center">Load Factor</th>
                                         <th className="px-6 py-4 text-[9px] font-black uppercase text-zinc-400 tracking-widest text-right">Audit</th>
@@ -951,7 +1000,16 @@ const KitchenManagement = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className="font-black text-secondary text-xs">{kitchen.orders} <span className="text-[8px] text-zinc-300 uppercase">Units</span></span>
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="font-black text-purple-600 text-xs">{kitchen.stockPayload} <span className="text-[8px] text-zinc-300 uppercase">Units</span></span>
+                                                    <span className="text-[7px] text-zinc-400 font-bold">of {kitchen.totalAssigned}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="font-black text-orange-600 text-xs">{kitchen.assignedOrders} <span className="text-[8px] text-zinc-300 uppercase">Orders</span></span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="font-black text-emerald-600 text-xs">{kitchen.completedOrders} <span className="text-[8px] text-zinc-300 uppercase">Orders</span></span>
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex flex-col items-center gap-1">

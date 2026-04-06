@@ -4,10 +4,10 @@ import axios from 'axios';
 const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 const API_BASE_URL = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
 
-console.log('Environment:', import.meta.env.MODE);
-console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
-console.log('Base URL:', baseUrl);
-console.log('Final API Base URL:', API_BASE_URL);
+// console.log('Environment:', import.meta.env.MODE);
+// console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+// console.log('Base URL:', baseUrl);
+// console.log('Final API Base URL:', API_BASE_URL);
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -24,7 +24,7 @@ api.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
-        console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+        // console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
         return config;
     },
     (error) => Promise.reject(error)
@@ -33,7 +33,7 @@ api.interceptors.request.use(
 // Add response interceptor for debugging
 api.interceptors.response.use(
     (response) => {
-        console.log(`[API Response] ${response.config.url}`, response.status);
+        // console.log(`[API Response] ${response.config.url}`, response.status);
         return response;
     },
     (error) => {
