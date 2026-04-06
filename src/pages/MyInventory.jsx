@@ -19,7 +19,7 @@ const MyInventory = () => {
             const invRes = await getUserInventory();
             
             if (invRes.data.success) {
-                // console.log('Inventory data:', invRes.data.inventory);
+                console.log('Inventory data:', invRes.data.inventory);
                 setInventory(invRes.data.inventory || []);
             }
         } catch (error) {
@@ -212,18 +212,29 @@ const MyInventory = () => {
                                 const unit = item.product?.unit || 'Units';
                                 const thumbnail = item.product?.thumbnail;
                                 const minStock = item.product?.minStock || 10;
-                                const status = item.status || item.product?.status || 'Unknown';
+                                
+                                // Use status from backend first, then calculate if not present
+                                let status = item.status || item.product?.status;
+                                if (!status) {
+                                    if (remaining > minStock) {
+                                        status = 'In Stock';
+                                    } else if (remaining > 0) {
+                                        status = 'Low Stock';
+                                    } else {
+                                        status = 'Out of Stock';
+                                    }
+                                }
                                 
                                 // Calculate status color
                                 let statusColor = 'bg-zinc-100 text-zinc-600';
                                 let statusIcon = null;
-                                if (status === 'In Stock' || remaining > minStock) {
+                                if (status === 'In Stock') {
                                     statusColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
                                     statusIcon = <MdCheckCircle size={14} />;
-                                } else if (status === 'Low Stock' || (remaining > 0 && remaining <= minStock)) {
+                                } else if (status === 'Low Stock') {
                                     statusColor = 'bg-orange-100 text-orange-700 border-orange-200';
                                     statusIcon = <MdWarning size={14} />;
-                                } else if (status === 'Out of Stock' || remaining <= 0) {
+                                } else if (status === 'Out of Stock') {
                                     statusColor = 'bg-red-100 text-red-700 border-red-200';
                                     statusIcon = <MdWarning size={14} />;
                                 }
