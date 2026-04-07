@@ -205,8 +205,21 @@ const OrderMenu = () => {
                                         </span>
                                     </div>
 
-                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-secondary border border-primary/10 shadow-sm uppercase tracking-widest italic">
-                                        {product.category}
+                                    <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                                        <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-secondary border border-primary/10 shadow-sm uppercase tracking-widest italic">
+                                            {product.category}
+                                        </div>
+                                        {product.status === 'Low Stock' && (
+                                            <div className="bg-orange-500/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-white border border-orange-400 shadow-sm uppercase tracking-widest flex items-center gap-1">
+                                                <FaFire size={10} />
+                                                {product.quantity} Left
+                                            </div>
+                                        )}
+                                        {product.status === 'Out of Stock' && (
+                                            <div className="bg-red-500/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-white border border-red-400 shadow-sm uppercase tracking-widest">
+                                                Out of Stock
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
