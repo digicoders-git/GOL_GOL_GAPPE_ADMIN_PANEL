@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
     FaSearch, FaUtensils, FaArrowRight, FaFilter,
-    FaFire, FaLeaf, FaShoppingBag, FaStar, FaBoxOpen, FaTimes, FaMapMarkerAlt
+    FaFire, FaLeaf, FaShoppingBag, FaStar, FaBoxOpen, FaTimes, FaMapMarkerAlt, FaTag
 } from 'react-icons/fa';
 import { getAvailableProducts, getKitchens } from '../utils/api';
 
@@ -209,6 +209,12 @@ const OrderMenu = () => {
                                         <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-secondary border border-primary/10 shadow-sm uppercase tracking-widest italic">
                                             {product.category}
                                         </div>
+                                        {product.activeOffer && (
+                                            <div className="bg-gradient-to-r from-orange-500 to-red-600 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-white border border-orange-400 shadow-lg uppercase tracking-widest flex items-center gap-1 animate-pulse">
+                                                <FaTag size={10} />
+                                                {product.activeOffer.discountValue}{product.activeOffer.discountType === 'percentage' ? '%' : '₹'} OFF
+                                            </div>
+                                        )}
                                         {product.status === 'Low Stock' && (
                                             <div className="bg-orange-500/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-white border border-orange-400 shadow-sm uppercase tracking-widest flex items-center gap-1">
                                                 <FaFire size={10} />
@@ -244,7 +250,12 @@ const OrderMenu = () => {
                                     <div className="mt-auto flex items-center justify-between pt-4 border-t border-primary/5">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-secondary/30 uppercase tracking-widest leading-none">Price</span>
-                                            {product.discountPrice && product.discountPrice < product.price ? (
+                                            {product.activeOffer ? (
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-2xl font-black text-green-600 italic">₹{product.activeOffer.discountType === 'percentage' ? (product.price - (product.price * product.activeOffer.discountValue / 100)).toFixed(0) : (product.price - product.activeOffer.discountValue).toFixed(0)}</span>
+                                                    <span className="text-sm font-bold text-secondary/30 line-through">₹{product.price}</span>
+                                                </div>
+                                            ) : product.discountPrice && product.discountPrice < product.price ? (
                                                 <div className="flex items-baseline gap-2">
                                                     <span className="text-2xl font-black text-secondary italic">₹{product.discountPrice}</span>
                                                     <span className="text-sm font-bold text-secondary/30 line-through">₹{product.price}</span>
