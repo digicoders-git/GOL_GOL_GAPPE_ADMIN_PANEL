@@ -62,23 +62,29 @@ const ProductDetail = () => {
             const response = await getProduct(id);
             if (response.data.success) {
                 const productData = response.data.product;
-                setProduct(productData);
                 
-                // Fetch active offer if exists
+                // Check if activeOffer is already populated (object) or just an ID
                 if (productData.activeOffer) {
-                    try {
-                        const offerResponse = await axios.get(
-                            `${import.meta.env.VITE_API_URL}/api/offers/${productData.activeOffer}`,
-                            { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-                        );
-                        if (offerResponse.data.success) {
-                            productData.activeOfferDetails = offerResponse.data.offer;
-                            setProduct({...productData});
+                    if (typeof productData.activeOffer === 'object' && productData.activeOffer.code) {
+                        // Already populated
+                        productData.activeOfferDetails = productData.activeOffer;
+                    } else {
+                        // It's an ID, fetch details
+                        try {
+                            const offerResponse = await axios.get(
+                                `${import.meta.env.VITE_API_URL}/api/offers/${productData.activeOffer}`,
+                                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                            );
+                            if (offerResponse.data.success) {
+                                productData.activeOfferDetails = offerResponse.data.offer;
+                            }
+                        } catch (err) {
+                            console.log('Failed to fetch offer details:', err);
                         }
-                    } catch (err) {
-                        console.log('Failed to fetch offer details:', err);
                     }
                 }
+                
+                setProduct(productData);
                 const fetchedKitchens = response.data.kitchens || [];
 
                 const queryParams = new URLSearchParams(location.search);

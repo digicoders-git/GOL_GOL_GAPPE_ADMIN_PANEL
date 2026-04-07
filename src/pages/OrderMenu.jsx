@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
     FaSearch, FaUtensils, FaArrowRight, FaFilter,
-    FaFire, FaLeaf, FaShoppingBag, FaStar, FaBoxOpen, FaTimes, FaMapMarkerAlt, FaTag
+    FaFire, FaLeaf, FaShoppingBag, FaStar, FaBoxOpen, FaTimes, FaMapMarkerAlt, FaTag, FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import { getAvailableProducts, getKitchens } from '../utils/api';
 
@@ -18,6 +18,7 @@ const OrderMenu = () => {
     const [selectedKitchen, setSelectedKitchen] = useState(null);
     const [kitchenSearch, setKitchenSearch] = useState('');
     const [showKitchenModal, setShowKitchenModal] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState({});
     const navigate = useNavigate();
 
     const fetchMenuData = async () => {
@@ -76,6 +77,29 @@ const OrderMenu = () => {
         k.name.toLowerCase().includes(kitchenSearch.toLowerCase()) ||
         k.location.toLowerCase().includes(kitchenSearch.toLowerCase())
     );
+
+    const getProductImages = (product) => {
+        const images = [];
+        if (product.thumbnail) images.push(product.thumbnail);
+        if (product.images && Array.isArray(product.images)) {
+            images.push(...product.images.filter(img => img && img !== product.thumbnail));
+        }
+        return images.length > 0 ? images : ['https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&q=80'];
+    };
+
+    const handleImageNavigation = (productId, direction, totalImages, e) => {
+        e.stopPropagation();
+        setCurrentImageIndex(prev => {
+            const current = prev[productId] || 0;
+            let newIndex;
+            if (direction === 'next') {
+                newIndex = (current + 1) % totalImages;
+            } else {
+                newIndex = current === 0 ? totalImages - 1 : current - 1;
+            }
+            return { ...prev, [productId]: newIndex };
+        });
+    };
 
     return (
         <div className="max-w-6xl mx-auto space-y-10 pb-20 px-2 sm:px-4">
@@ -166,9 +190,13 @@ const OrderMenu = () => {
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     <AnimatePresence mode='popLayout'>
-                        {filteredProducts.map((product, index) => (
+                        {filteredProducts.map((product, index) => {
+                            const productImages = getProductImages(product);
+                            const currentIndex = currentImageIndex[product._id] || 0;
+                            
+                            return (
                             <motion.div
                                 layout
                                 initial={{ opacity: 0, scale: 0.9 }}
@@ -180,97 +208,151 @@ const OrderMenu = () => {
                                     const searchParams = selectedKitchen ? `?kitchen=${selectedKitchen._id}` : '';
                                     navigate(`/product/${product._id}${searchParams}`);
                                 }}
-                                className="bg-white rounded-[2.5rem] border border-primary/10 shadow-lg hover:shadow-2xl transition-all group cursor-pointer flex flex-col overflow-hidden"
+                                className="bg-white rounded-3xl border border-zinc-200 shadow-lg hover:shadow-2xl transition-all group cursor-pointer flex flex-col overflow-hidden"
                             >
-                                <div className="h-56 relative overflow-hidden bg-[#F9F6F0]">
-                                    {product.thumbnail ? (
-                                        <img
-                                            src={product.thumbnail}
+                                {/* Image Section with Slider */}
+                                <div className="h-64 relative overflow-hidden bg-zinc-50">
+                                    <AnimatePresence mode="wait">
+                                        <motion.img
+                                            key={currentIndex}
+                                            src={productImages[currentIndex]}
                                             alt={product.name}
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                            className="w-full h-full object-cover"
                                         />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-primary/5 text-primary">
-                                            <FaUtensils size={40} />
-                                        </div>
+                                    </AnimatePresence>
+
+                                    {/* Image Navigation */}
+                                    {productImages.length > 1 && (
+                                        <>
+                                            <button
+                                                onClick={(e) => handleImageNavigation(product._id, 'prev', productImages.length, e)}
+                                                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
+                                            >
+                                                <FaChevronLeft className="text-secondary" size={12} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleImageNavigation(product._id, 'next', productImages.length, e)}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
+                                            >
+                                                <FaChevronRight className="text-secondary" size={12} />
+                                            </button>
+                                            
+                                            {/* Image Dots */}
+                                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                                                {productImages.map((_, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setCurrentImageIndex(prev => ({ ...prev, [product._id]: idx }));
+                                                        }}
+                                                        className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                                            idx === currentIndex 
+                                                                ? 'bg-white w-6' 
+                                                                : 'bg-white/50 hover:bg-white/75'
+                                                        }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </>
                                     )}
 
-                                    <div className="absolute top-4 left-4 flex gap-2">
-                                        <span className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1.5 border backdrop-blur-md ${product.foodType === 'veg'
-                                            ? 'bg-emerald-50/90 text-emerald-600 border-emerald-100'
-                                            : 'bg-red-50/90 text-red-600 border-red-100'
-                                            }`}>
-                                            {product.foodType === 'veg' ? <FaLeaf /> : <FaFire />}
+                                    {/* Badges */}
+                                    <div className="absolute top-3 left-3 flex gap-2 z-10">
+                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1 backdrop-blur-md border ${
+                                            product.foodType === 'veg'
+                                                ? 'bg-emerald-500/90 text-white border-emerald-400'
+                                                : 'bg-red-500/90 text-white border-red-400'
+                                        }`}>
+                                            {product.foodType === 'veg' ? <FaLeaf size={10} /> : <FaFire size={10} />}
                                             {product.foodType}
                                         </span>
                                     </div>
 
-                                    <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
-                                        <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-secondary border border-primary/10 shadow-sm uppercase tracking-widest italic">
-                                            {product.category}
-                                        </div>
+                                    <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-10">
                                         {product.activeOffer && (
-                                            <div className="bg-gradient-to-r from-orange-500 to-red-600 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-white border border-orange-400 shadow-lg uppercase tracking-widest flex items-center gap-1 animate-pulse">
+                                            <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-2.5 py-1 rounded-full text-[9px] font-black shadow-lg flex items-center gap-1 animate-pulse"
+                                            >
                                                 <FaTag size={10} />
                                                 {product.activeOffer.discountValue}{product.activeOffer.discountType === 'percentage' ? '%' : '₹'} OFF
-                                            </div>
+                                            </motion.div>
                                         )}
                                         {product.status === 'Low Stock' && (
-                                            <div className="bg-orange-500/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-white border border-orange-400 shadow-sm uppercase tracking-widest flex items-center gap-1">
+                                            <div className="bg-orange-500/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-black text-white shadow-lg flex items-center gap-1">
                                                 <FaFire size={10} />
                                                 {product.quantity} Left
                                             </div>
                                         )}
-                                        {product.status === 'Out of Stock' && (
-                                            <div className="bg-red-500/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[8px] font-black text-white border border-red-400 shadow-sm uppercase tracking-widest">
-                                                Out of Stock
-                                            </div>
-                                        )}
                                     </div>
 
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    {/* Gradient Overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </div>
 
-                                <div className="p-6 space-y-4 flex-1 flex flex-col">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="text-xl font-black italic text-secondary leading-tight group-hover:text-primary transition-colors">
+                                {/* Content Section */}
+                                <div className="p-5 flex-1 flex flex-col">
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex-1">
+                                            <h3 className="text-lg font-black text-secondary leading-tight mb-1 group-hover:text-primary transition-colors">
                                                 {product.name}
                                             </h3>
-                                            <div className="flex items-center gap-1 text-orange-500 font-black text-[10px]">
-                                                <FaStar fill="currentColor" />
-                                                <span>4.9</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">{product.category}</span>
+                                                <span className="w-1 h-1 bg-zinc-300 rounded-full"></span>
+                                                <div className="flex items-center gap-1 text-orange-500">
+                                                    <FaStar size={10} fill="currentColor" />
+                                                    <span className="text-[9px] font-bold">4.8</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <p className="text-secondary/50 text-[10px] font-bold uppercase tracking-widest line-clamp-2">
-                                            {product.description || 'Delicious and freshly prepared for you.'}
-                                        </p>
                                     </div>
 
-                                    <div className="mt-auto flex items-center justify-between pt-4 border-t border-primary/5">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-secondary/30 uppercase tracking-widest leading-none">Price</span>
-                                            {product.activeOffer ? (
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className="text-2xl font-black text-green-600 italic">₹{product.activeOffer.discountType === 'percentage' ? (product.price - (product.price * product.activeOffer.discountValue / 100)).toFixed(0) : (product.price - product.activeOffer.discountValue).toFixed(0)}</span>
-                                                    <span className="text-sm font-bold text-secondary/30 line-through">₹{product.price}</span>
-                                                </div>
-                                            ) : product.discountPrice && product.discountPrice < product.price ? (
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className="text-2xl font-black text-secondary italic">₹{product.discountPrice}</span>
-                                                    <span className="text-sm font-bold text-secondary/30 line-through">₹{product.price}</span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-2xl font-black text-secondary italic">₹{product.price}</span>
-                                            )}
-                                        </div>
-                                        <div className="w-12 h-12 bg-secondary text-primary rounded-2xl flex items-center justify-center group-hover:bg-primary group-hover:text-secondary transition-all active:scale-95 shadow-lg shadow-secondary/10">
-                                            <FaShoppingBag size={20} />
+                                    <p className="text-xs text-zinc-500 leading-relaxed mb-4 line-clamp-2">
+                                        {product.description || 'Delicious and freshly prepared for you.'}
+                                    </p>
+
+                                    {/* Price & Action */}
+                                    <div className="mt-auto pt-4 border-t border-zinc-100">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Price</span>
+                                                {product.activeOffer ? (
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-xl font-black text-green-600">
+                                                            ₹{product.activeOffer.discountType === 'percentage' 
+                                                                ? (product.price - (product.price * product.activeOffer.discountValue / 100)).toFixed(0) 
+                                                                : (product.price - product.activeOffer.discountValue).toFixed(0)}
+                                                        </span>
+                                                        <span className="text-sm font-bold text-zinc-400 line-through">₹{product.price}</span>
+                                                    </div>
+                                                ) : product.discountPrice && product.discountPrice < product.price ? (
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-xl font-black text-secondary">₹{product.discountPrice}</span>
+                                                        <span className="text-sm font-bold text-zinc-400 line-through">₹{product.price}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-xl font-black text-secondary">₹{product.price}</span>
+                                                )}
+                                            </div>
+                                            <motion.div
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                                className="w-11 h-11 bg-gradient-to-br from-primary to-orange-500 text-white rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all"
+                                            >
+                                                <FaShoppingBag size={18} />
+                                            </motion.div>
                                         </div>
                                     </div>
                                 </div>
                             </motion.div>
-                        ))}
+                        )})}
                     </AnimatePresence>
                 </div>
             )}
