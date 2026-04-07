@@ -48,6 +48,25 @@ const OrderMenu = () => {
         fetchMenuData();
     }, []);
 
+    // Auto-slide images every 3 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentImageIndex(prev => {
+                const newIndex = { ...prev };
+                filteredProducts.forEach(product => {
+                    const images = getProductImages(product);
+                    if (images.length > 1) {
+                        const current = prev[product._id] || 0;
+                        newIndex[product._id] = (current + 1) % images.length;
+                    }
+                });
+                return newIndex;
+            });
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [filteredProducts]);
+
     const categories = ['All', ...new Set(products.map(p => p.category))];
 
     const filteredProducts = products.filter(product => {
@@ -94,6 +113,11 @@ const OrderMenu = () => {
             }
             return { ...prev, [productId]: newIndex };
         });
+    };
+
+    const handleDotClick = (productId, index, e) => {
+        e.stopPropagation();
+        setCurrentImageIndex(prev => ({ ...prev, [productId]: index }));
     };
 
     return (
@@ -241,10 +265,7 @@ const OrderMenu = () => {
                                                 {productImages.map((_, idx) => (
                                                     <button
                                                         key={idx}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setCurrentImageIndex(prev => ({ ...prev, [product._id]: idx }));
-                                                        }}
+                                                        onClick={(e) => handleDotClick(product._id, idx, e)}
                                                         className={`w-1.5 h-1.5 rounded-full transition-all ${
                                                             idx === currentIndex 
                                                                 ? 'bg-white w-6' 
