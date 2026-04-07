@@ -258,7 +258,7 @@ const OfferManagement = () => {
                                         <p><strong>Discount:</strong> {offer.discountType === 'percentage' ? `${offer.discountValue}%` : `₹${offer.discountValue}`}</p>
                                         <p><strong>Used:</strong> {offer.usedCount}/{offer.maxUses} {offer.usedCount >= offer.maxUses && <span className="text-red-600 font-bold">(LIMIT REACHED)</span>}</p>
                                         <p><strong>Expires:</strong> {new Date(offer.expiryDate).toLocaleDateString()} {new Date(offer.expiryDate) < new Date() && <span className="text-red-600 font-bold">(EXPIRED)</span>}</p>
-                                        <p><strong>Min Order:</strong> ₹{offer.minOrderAmount}</p>
+                                        {/* <p><strong>Min Order:</strong> ₹{offer.minOrderAmount}</p> */}
                                     </div>
 
                                     {/* Status Alert */}
