@@ -44,54 +44,6 @@ const OrderMenu = () => {
         }
     };
 
-    useEffect(() => {
-        fetchMenuData();
-    }, []);
-
-    // Auto-slide images every 3 seconds
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setCurrentImageIndex(prev => {
-                const newIndex = { ...prev };
-                filteredProducts.forEach(product => {
-                    const images = getProductImages(product);
-                    if (images.length > 1) {
-                        const current = prev[product._id] || 0;
-                        newIndex[product._id] = (current + 1) % images.length;
-                    }
-                });
-                return newIndex;
-            });
-        }, 3000);
-
-        return () => clearInterval(interval);
-    }, [filteredProducts]);
-
-    const categories = ['All', ...new Set(products.map(p => p.category))];
-
-    const filteredProducts = products.filter(product => {
-        const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            product.description?.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-        const matchesFoodType = foodType === 'All' || product.foodType === foodType;
-
-        // Kitchen logic
-        let matchesKitchen = true;
-        if (selectedKitchen) {
-            matchesKitchen = selectedKitchen.assignedProducts?.some(ap => {
-                const prodId = ap.product?._id || ap.product;
-                return prodId?.toString() === product._id?.toString();
-            });
-        }
-
-        return matchesSearch && matchesCategory && matchesFoodType && matchesKitchen;
-    });
-
-    const filteredKitchens = kitchens.filter(k =>
-        k.name.toLowerCase().includes(kitchenSearch.toLowerCase()) ||
-        k.location.toLowerCase().includes(kitchenSearch.toLowerCase())
-    );
-
     const getProductImages = (product) => {
         const images = [];
         if (product.thumbnail) images.push(product.thumbnail);
@@ -119,6 +71,56 @@ const OrderMenu = () => {
         e.stopPropagation();
         setCurrentImageIndex(prev => ({ ...prev, [productId]: index }));
     };
+
+    useEffect(() => {
+        fetchMenuData();
+    }, []);
+
+    // Auto-slide images every 3 seconds
+    useEffect(() => {
+        if (loading || products.length === 0) return;
+
+        const interval = setInterval(() => {
+            setCurrentImageIndex(prev => {
+                const newIndex = { ...prev };
+                products.forEach(product => {
+                    const images = getProductImages(product);
+                    if (images.length > 1) {
+                        const current = prev[product._id] || 0;
+                        newIndex[product._id] = (current + 1) % images.length;
+                    }
+                });
+                return newIndex;
+            });
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [products, loading]);
+
+    const categories = ['All', ...new Set(products.map(p => p.category))];
+
+    const filteredProducts = products.filter(product => {
+        const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            product.description?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+        const matchesFoodType = foodType === 'All' || product.foodType === foodType;
+
+        // Kitchen logic
+        let matchesKitchen = true;
+        if (selectedKitchen) {
+            matchesKitchen = selectedKitchen.assignedProducts?.some(ap => {
+                const prodId = ap.product?._id || ap.product;
+                return prodId?.toString() === product._id?.toString();
+            });
+        }
+
+        return matchesSearch && matchesCategory && matchesFoodType && matchesKitchen;
+    });
+
+    const filteredKitchens = kitchens.filter(k =>
+        k.name.toLowerCase().includes(kitchenSearch.toLowerCase()) ||
+        k.location.toLowerCase().includes(kitchenSearch.toLowerCase())
+    );
 
     return (
         <div className="max-w-6xl mx-auto space-y-10 pb-20 px-2 sm:px-4">
