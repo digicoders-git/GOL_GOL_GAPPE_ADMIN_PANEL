@@ -341,16 +341,7 @@ const OrderMenu = () => {
                                         <div className="flex items-center justify-between">
                                             <div className="flex flex-col">
                                                 <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Price</span>
-                                                {product.activeOffer ? (
-                                                    <div className="flex items-baseline gap-2">
-                                                        <span className="text-xl font-black text-green-600">
-                                                            ₹{product.activeOffer.discountType === 'percentage' 
-                                                                ? (product.price - (product.price * product.activeOffer.discountValue / 100)).toFixed(0) 
-                                                                : (product.price - product.activeOffer.discountValue).toFixed(0)}
-                                                        </span>
-                                                        <span className="text-sm font-bold text-zinc-400 line-through">₹{product.price}</span>
-                                                    </div>
-                                                ) : product.discountPrice && product.discountPrice < product.price ? (
+                                                {product.discountPrice && product.discountPrice < product.price ? (
                                                     <div className="flex items-baseline gap-2">
                                                         <span className="text-xl font-black text-secondary">₹{product.discountPrice}</span>
                                                         <span className="text-sm font-bold text-zinc-400 line-through">₹{product.price}</span>
