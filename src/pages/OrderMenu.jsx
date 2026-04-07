@@ -46,11 +46,6 @@ const OrderMenu = () => {
 
     useEffect(() => {
         fetchMenuData();
-        
-        // Poll every 5 seconds for real-time stock updates
-        const interval = setInterval(fetchMenuData, 5000);
-        
-        return () => clearInterval(interval);
     }, []);
 
     const categories = ['All', ...new Set(products.map(p => p.category))];
@@ -118,9 +113,9 @@ const OrderMenu = () => {
                         </p>
                     </motion.div>
 
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 relative group">
-                            <FaSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-primary transition-colors" />
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
                             <input
                                 type="text"
                                 placeholder="Search your favorite snack..."
