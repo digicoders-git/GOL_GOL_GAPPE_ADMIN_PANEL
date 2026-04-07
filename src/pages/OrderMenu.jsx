@@ -6,7 +6,7 @@ import {
     FaSearch, FaUtensils, FaArrowRight, FaFilter,
     FaFire, FaLeaf, FaShoppingBag, FaStar, FaBoxOpen, FaTimes, FaMapMarkerAlt
 } from 'react-icons/fa';
-import { getProducts, getKitchens } from '../utils/api';
+import { getAvailableProducts, getKitchens } from '../utils/api';
 
 const OrderMenu = () => {
     const [products, setProducts] = useState([]);
@@ -24,12 +24,13 @@ const OrderMenu = () => {
         try {
             setLoading(true);
             const [prodRes, kitchenRes] = await Promise.all([
-                getProducts(),
+                getAvailableProducts(),
                 getKitchens()
             ]);
 
             if (prodRes.data.success) {
                 setProducts(prodRes.data.products);
+                console.log('Available products loaded:', prodRes.data.products.length);
             }
             if (kitchenRes.data.success) {
                 setKitchens(kitchenRes.data.kitchens.filter(k => k.status === 'Active'));
@@ -44,6 +45,11 @@ const OrderMenu = () => {
 
     useEffect(() => {
         fetchMenuData();
+        
+        // Poll every 5 seconds for real-time stock updates
+        const interval = setInterval(fetchMenuData, 5000);
+        
+        return () => clearInterval(interval);
     }, []);
 
     const categories = ['All', ...new Set(products.map(p => p.category))];

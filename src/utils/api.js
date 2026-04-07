@@ -79,6 +79,7 @@ export const updateProfile = (data) => api.put('/auth/profile', data);
 
 // Product/Inventory APIs
 export const getProducts = (params = '') => api.get(`/products${params ? `?${params}` : ''}`);
+export const getAvailableProducts = () => api.get('/products/available');
 export const getProduct = (id) => api.get(`/products/${id}`);
 export const createProduct = (data) => api.post('/products', data);
 export const getUserInventory = (params = '') => api.get(`/products/user-inventory${params ? `?${params}` : ''}`);
