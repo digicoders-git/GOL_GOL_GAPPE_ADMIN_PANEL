@@ -1081,8 +1081,8 @@ const BillingManagement = () => {
                                         <div className="w-16 h-16 bg-primary rounded-3xl flex items-center justify-center text-secondary shadow-2xl mb-6 transform -rotate-12">
                                             <FaUtensils size={32} />
                                         </div>
-                                        <h2 className="text-3xl font-black text-secondary uppercase italic tracking-tighter">Smart Billing</h2>
-                                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.4em] mt-2">Enterprise Transaction Record</p>
+                                        <h2 className="text-3xl font-black text-secondary uppercase italic tracking-tighter">GOLGOLGAPPE</h2>
+                                        <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.4em] mt-2">Taste That Bursts in Every Bite!</p>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-8 mb-10 border-y-2 border-dashed border-zinc-100 py-8">
