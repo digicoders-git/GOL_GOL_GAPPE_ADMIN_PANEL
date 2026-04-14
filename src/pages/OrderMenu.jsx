@@ -292,16 +292,7 @@ const OrderMenu = () => {
                                     </div>
 
                                     <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-10">
-                                        {product.activeOffer && (
-                                            <motion.div
-                                                initial={{ scale: 0 }}
-                                                animate={{ scale: 1 }}
-                                                className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-2.5 py-1 rounded-full text-[9px] font-black shadow-lg flex items-center gap-1 animate-pulse"
-                                            >
-                                                <FaTag size={10} />
-                                                {product.activeOffer.discountValue}{product.activeOffer.discountType === 'percentage' ? '%' : '₹'} OFF
-                                            </motion.div>
-                                        )}
+                                        {/* ⭐ Offer badge removed - offers are private now */}
                                         {product.status === 'Low Stock' && (
                                             <div className="bg-orange-500/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-black text-white shadow-lg flex items-center gap-1">
                                                 <FaFire size={10} />

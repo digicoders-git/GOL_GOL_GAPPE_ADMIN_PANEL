@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { MdAdd, MdRemove, MdDelete, MdReceipt, MdPerson, MdPhone } from 'react-icons/md';
+import { FaTag, FaTimes, FaCheckCircle } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { getProducts, createBill, getKitchens } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -19,6 +21,11 @@ const CreateBill = () => {
     const [selectedKitchen, setSelectedKitchen] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('Cash');
     const [cartItems, setCartItems] = useState([]);
+    
+    // ⭐ Offer code states
+    const [offerCode, setOfferCode] = useState('');
+    const [appliedOffer, setAppliedOffer] = useState(null);
+    const [applyingOffer, setApplyingOffer] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -75,7 +82,58 @@ const CreateBill = () => {
     };
 
     const calculateTotal = () => {
+        const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        const discount = appliedOffer ? appliedOffer.priceBreakdown.discountAmount : 0;
+        return subtotal - discount;
+    };
+
+    const calculateSubtotal = () => {
         return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    };
+
+    // ⭐ Handle offer code application
+    const handleApplyOffer = async () => {
+        if (!offerCode.trim()) {
+            toast.error('Please enter an offer code');
+            return;
+        }
+
+        const subtotal = calculateSubtotal();
+        if (subtotal === 0) {
+            toast.error('Please add items to cart first');
+            return;
+        }
+
+        setApplyingOffer(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `${API_URL}/api/offers/validate`,
+                {
+                    code: offerCode.toUpperCase(),
+                    orderAmount: subtotal,
+                    productId: null
+                },
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+
+            if (response.data.success) {
+                setAppliedOffer(response.data);
+                toast.success(`Offer applied! You saved ₹${response.data.priceBreakdown.discountAmount}`);
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Invalid offer code');
+        } finally {
+            setApplyingOffer(false);
+        }
+    };
+
+    const handleRemoveOffer = () => {
+        setAppliedOffer(null);
+        setOfferCode('');
+        toast.success('Offer removed');
     };
 
     const handleSubmit = async (e) => {
@@ -114,6 +172,11 @@ const CreateBill = () => {
                 status: 'Pending'
             };
 
+            // ⭐ Add offer code if applied
+            if (appliedOffer) {
+                billData.offerCode = appliedOffer.offer.code;
+            }
+
             if (selectedKitchen) {
                 billData.kitchen = selectedKitchen;
             }
@@ -130,6 +193,8 @@ const CreateBill = () => {
                 setCartItems([]);
                 setSelectedKitchen('');
                 setPaymentMethod('Cash');
+                setOfferCode('');
+                setAppliedOffer(null);
                 
                 // Navigate to billing management
                 setTimeout(() => {
@@ -264,6 +329,53 @@ const CreateBill = () => {
                     {/* Cart */}
                     <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm">
                         <h2 className="text-base font-black text-secondary uppercase mb-4">Cart ({cartItems.length})</h2>
+                        
+                        {/* Offer Code Input */}
+                        {cartItems.length > 0 && (
+                            <div className="mb-4 p-4 border border-zinc-200 rounded-xl space-y-3">
+                                <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                    <FaTag className="text-primary" /> Have a Promo Code?
+                                </label>
+                                {!appliedOffer ? (
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={offerCode}
+                                            onChange={(e) => setOfferCode(e.target.value.toUpperCase())}
+                                            placeholder="Enter code"
+                                            className="flex-1 px-3 py-2 border border-zinc-200 rounded-lg text-sm font-bold focus:outline-none focus:border-primary uppercase"
+                                            disabled={applyingOffer}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyOffer}
+                                            disabled={applyingOffer || !offerCode.trim()}
+                                            className="px-4 py-2 bg-primary text-secondary font-black rounded-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase"
+                                        >
+                                            {applyingOffer ? 'Checking...' : 'Apply'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <FaCheckCircle className="text-green-600" />
+                                            <div>
+                                                <p className="text-sm font-black text-green-700">{appliedOffer.offer.code}</p>
+                                                <p className="text-xs text-zinc-600">{appliedOffer.offer.title}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveOffer}
+                                            className="text-red-500 hover:text-red-700 p-1"
+                                        >
+                                            <FaTimes />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
                         <div className="space-y-3 max-h-[300px] overflow-y-auto mb-4">
                             {cartItems.length === 0 ? (
                                 <p className="text-center text-zinc-400 text-sm py-8">Cart is empty</p>
@@ -305,10 +417,29 @@ const CreateBill = () => {
 
                         {/* Total */}
                         <div className="border-t border-zinc-100 pt-4 space-y-3">
+                            {appliedOffer && (
+                                <>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="font-bold text-zinc-400 uppercase">Subtotal</span>
+                                        <span className="font-black text-secondary">₹{calculateSubtotal()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="font-bold text-green-600 uppercase">Discount ({appliedOffer.offer.code})</span>
+                                        <span className="font-black text-green-600">-₹{appliedOffer.priceBreakdown.discountAmount}</span>
+                                    </div>
+                                </>
+                            )}
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-bold text-zinc-400 uppercase">Total Amount</span>
                                 <span className="text-2xl font-black text-secondary">₹{calculateTotal()}</span>
                             </div>
+                            {appliedOffer && (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                                    <p className="text-xs font-black text-green-700 uppercase flex items-center gap-2">
+                                        <FaCheckCircle /> You saved ₹{appliedOffer.priceBreakdown.discountAmount}
+                                    </p>
+                                </div>
+                            )}
                             <button
                                 type="submit"
                                 disabled={submitting || cartItems.length === 0}

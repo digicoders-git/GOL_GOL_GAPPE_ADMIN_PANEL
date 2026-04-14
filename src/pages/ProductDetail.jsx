@@ -31,6 +31,7 @@ const ProductDetail = () => {
         return savedOffer ? JSON.parse(savedOffer) : null;
     });
     const [applyingOffer, setApplyingOffer] = useState(false);
+    const [offerCode, setOfferCode] = useState('');  // ⭐ New state for manual offer code
 
     useEffect(() => {
         fetchProductDetails();
@@ -379,6 +380,57 @@ const ProductDetail = () => {
         }
     };
 
+    // ⭐ New handler for manual offer code entry
+    const handleApplyOfferCode = async () => {
+        if (!offerCode.trim()) {
+            toast.error('Please enter an offer code');
+            return;
+        }
+
+        if (quantity > 1) {
+            toast.error('Offer can only be applied to 1 item. Please set quantity to 1.');
+            return;
+        }
+
+        setApplyingOffer(true);
+        try {
+            const effectivePrice = (product.discountPrice && product.discountPrice < product.price) ? product.discountPrice : product.price;
+            const itemTotal = effectivePrice * quantity;
+            
+            // ⭐ Use /apply endpoint to actually apply the offer
+            const response = await axios.post(
+                `${import.meta.env.VITE_API_URL}/api/offers/apply`,
+                {
+                    code: offerCode.toUpperCase(),
+                    orderAmount: itemTotal,
+                    productId: product._id
+                },
+                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+            );
+
+            if (response.data.success) {
+                const offerDiscount = response.data.priceBreakdown.discountAmount;
+                setAppliedOffer({
+                    ...response.data.offer,
+                    discount: offerDiscount,
+                    discountAmount: offerDiscount,
+                    code: response.data.offer.code,
+                    title: response.data.offer.title || offerCode
+                });
+                toast.success(`🎉 Offer Applied! You saved ₹${offerDiscount}`, {
+                    duration: 4000,
+                    icon: '🎉'
+                });
+                setOfferCode('');  // Clear input after successful application
+            }
+        } catch (error) {
+            const message = error.response?.data?.message || 'Invalid offer code';
+            toast.error(message);
+        } finally {
+            setApplyingOffer(false);
+        }
+    };
+
     const handleQuantityChange = (newQuantity) => {
         if (appliedOffer) {
             toast.error('Offer is applied. Cannot change quantity until order is placed.');
@@ -576,36 +628,37 @@ const ProductDetail = () => {
                         </div>
                     </div>
 
-                    {product.activeOfferDetails && !appliedOffer && (
-                        <div className="bg-gradient-to-br from-orange-50 to-red-50 p-6 rounded-2xl border-2 border-orange-200">
-                            <div className="flex items-center gap-2 mb-4">
-                                <FaTag className="text-orange-600" />
-                                <h3 className="text-sm font-black text-orange-800 uppercase tracking-wider">Special Offer Available!</h3>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-orange-200">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <p className="font-black text-orange-900 text-base uppercase">{product.activeOfferDetails.title}</p>
-                                        <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-black">
-                                            {product.activeOfferDetails.discountValue}{product.activeOfferDetails.discountType === 'percentage' ? '%' : '₹'} OFF
-                                        </span>
-                                    </div>
-                                    {product.activeOfferDetails.description && (
-                                        <p className="text-xs text-orange-700 font-medium">{product.activeOfferDetails.description}</p>
-                                    )}
-                                    <p className="text-xs text-orange-600 font-bold mt-2">Code: {product.activeOfferDetails.code}</p>
-                                </div>
-                                <button
-                                    onClick={handleApplyOffer}
+                    {/* ⭐ Offer Code Input Section */}
+                    <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
+                        <label className="text-xs font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+                            <FaTag className="text-primary" /> Have a Promo Code?
+                        </label>
+                        {!appliedOffer ? (
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={offerCode}
+                                    onChange={(e) => setOfferCode(e.target.value.toUpperCase())}
+                                    placeholder="Enter code"
+                                    className="flex-1 px-4 py-3 border border-zinc-200 rounded-xl text-sm font-bold focus:outline-none focus:border-primary uppercase"
                                     disabled={applyingOffer || quantity > 1}
-                                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:from-orange-600 hover:to-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleApplyOfferCode}
+                                    disabled={applyingOffer || !offerCode.trim() || quantity > 1}
+                                    className="px-6 py-3 bg-primary text-secondary font-black rounded-xl hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-widest"
                                 >
-                                    {applyingOffer ? 'Applying...' : quantity > 1 ? 'Set Qty to 1 to Apply' : 'Apply Offer'}
+                                    {applyingOffer ? 'Checking...' : 'Apply'}
                                 </button>
                             </div>
-                        </div>
-                    )}
+                        ) : null}
+                        {quantity > 1 && !appliedOffer && (
+                            <p className="text-xs text-orange-600 font-bold mt-2">Set quantity to 1 to apply offer</p>
+                        )}
+                    </div>
+
+                    {/* ⭐ Offer section removed - offers are private now */}
 
                     {appliedOffer && (
                         <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl border-2 border-green-300">
